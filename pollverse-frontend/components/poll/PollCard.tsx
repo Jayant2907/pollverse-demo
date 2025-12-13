@@ -1,0 +1,325 @@
+import { useState, useRef } from 'react';
+import { Poll } from '../../types';
+import { getTotalVotes, timeAgo } from '../../constants';
+import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon } from '../Icons';
+import SvgPlaceholder from '../ui/SvgPlaceholder';
+import SwipePoll from './SwipePoll';
+import confetti from 'canvas-confetti';
+
+interface PollCardProps {
+    poll: Poll;
+    onNavigate: (name: string, data?: any) => void;
+    isLoggedIn: boolean;
+    requireLogin: (action: () => void) => void;
+    showToast: (message: string) => void;
+    onVote: (pollId: number | string) => void;
+    onVoteComplete?: () => void;
+}
+
+const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete }) => {
+    const [userVote, setUserVote] = useState<string | number | null>(null);
+    const [interaction, setInteraction] = useState<'like' | 'dislike' | null>(null);
+    const [showFullDescription, setShowFullDescription] = useState(false);
+
+    // State for Ranking Polls
+    const [rankedItems, setRankedItems] = useState(poll.options);
+    const dragItem = useRef<number | null>(null);
+    const dragOverItem = useRef<number | null>(null);
+
+    // State for Slider Polls
+    const [sliderValue, setSliderValue] = useState(50);
+
+    // Check Expiration Logic
+    const totalVotes = getTotalVotes(poll.votes);
+    const isTimeExpired = poll.expiresAt && new Date() > poll.expiresAt;
+    const isMaxVotesReached = poll.maxVotes ? totalVotes >= poll.maxVotes : false;
+    const isPollClosed = !!(isTimeExpired || isMaxVotesReached);
+
+    // UI / Haptic helpers
+    const triggerHaptic = () => {
+        if (navigator.vibrate) navigator.vibrate(30);
+    };
+
+    const triggerConfetti = () => {
+        const colors = ['#3b82f6', '#ef4444', '#10b981'];
+        confetti({
+            particleCount: 60,
+            spread: 60,
+            origin: { y: 0.7 },
+            colors: colors,
+            disableForReducedMotion: true
+        });
+    };
+
+    const handleVote = (optionId: string | number) => {
+        if (isPollClosed) return;
+
+        if (!isLoggedIn) {
+            requireLogin(() => handleVote(optionId));
+            return;
+        }
+        if (!userVote) {
+            triggerHaptic();
+            triggerConfetti();
+            setUserVote(optionId);
+            onVote(poll.id);
+
+            if (onVoteComplete) {
+                onVoteComplete();
+            }
+        }
+    };
+
+    const handleInteract = (type: 'like' | 'dislike') => {
+        if (!isLoggedIn) {
+            requireLogin(() => handleInteract(type));
+            return;
+        }
+        triggerHaptic();
+        setInteraction(prev => prev === type ? null : type);
+    };
+
+    const handleShare = async () => {
+        const shareData = {
+            title: 'Check out this poll on PollVerse!',
+            text: poll.question,
+            url: window.location.href,
+        };
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                navigator.clipboard.writeText(shareData.url);
+                showToast('Link copied to clipboard!');
+            }
+        } catch (err) {
+            console.error("Couldn't share poll", err);
+        }
+    };
+
+    // Drag and Drop Handlers for Ranking
+    const handleDragStart = (_e: React.DragEvent, position: number) => { dragItem.current = position; };
+    const handleDragEnter = (_e: React.DragEvent, position: number) => { dragOverItem.current = position; };
+    const handleDrop = () => {
+        if (isPollClosed) return;
+        if (dragItem.current === null || dragOverItem.current === null) return;
+        const copyListItems = [...rankedItems];
+        const dragItemContent = copyListItems[dragItem.current];
+        copyListItems.splice(dragItem.current, 1);
+        copyListItems.splice(dragOverItem.current, 0, dragItemContent);
+        dragItem.current = null;
+        dragOverItem.current = null;
+        setRankedItems(copyListItems);
+        triggerHaptic();
+    };
+
+    // Time Remaining formatting
+    const getTimeRemaining = () => {
+        if (!poll.expiresAt) return null;
+        const diff = poll.expiresAt.getTime() - new Date().getTime();
+        if (diff <= 0) return "Expired";
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        return `Expires in ${days}d ${hours}h`;
+    };
+
+    const renderPollContent = () => {
+        const isDisabled = !!userVote || !!isPollClosed;
+
+        switch (poll.pollType) {
+            case 'swipe':
+                if (isPollClosed && !userVote) {
+                    return (
+                        <div className="h-64 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-xl text-gray-500">
+                            <span className="text-3xl mb-2">🔒</span>
+                            <p className="font-bold">Poll Ended</p>
+                        </div>
+                    );
+                }
+                return (
+                    <SwipePoll
+                        poll={poll}
+                        onVoteComplete={() => {
+                            onVote(poll.id);
+                            if (onVoteComplete) onVoteComplete();
+                        }}
+                    />
+                );
+            case 'survey':
+                // Multi-page survey Participation Card
+                return (
+                    <div className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-2">
+                            {poll.category ? `${poll.category} Survey` : 'Survey'}
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 text-center text-sm mb-6">
+                            {poll.question}
+                        </p>
+
+                        <button
+                            onClick={() => onNavigate('survey', poll)}
+                            disabled={isPollClosed}
+                            className={`w-full py-3 px-6 rounded-lg font-bold text-lg shadow-lg transition-transform active:scale-95 ${isPollClosed
+                                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
+                                : 'bg-blue-800 dark:bg-blue-700 text-white hover:bg-blue-900'
+                                }`}
+                        >
+                            {isPollClosed ? 'Survey Ended' : 'Participate'}
+                        </button>
+                        {poll.expiresAt && (
+                            <p className="text-xs text-gray-400 mt-3">{getTimeRemaining()}</p>
+                        )}
+                    </div>
+                );
+            case 'image':
+                return (
+                    <div className="relative flex justify-center items-center h-full group">
+                        <span className="absolute text-5xl font-black text-gray-200 dark:text-gray-700 z-0">VS</span>
+                        {poll.options.map((opt, i) => (
+                            <div key={opt.id} className={`relative w-1/2 mx-2 flex-shrink-0 transition-all duration-500 ease-out ${i === 0 ? 'group-hover:rotate-[-2deg]' : 'group-hover:rotate-[2deg]'} group-hover:scale-105 ${userVote ? (userVote === opt.id ? 'scale-105 z-10' : 'scale-95 opacity-60') : ''}`}>
+                                <button onClick={() => handleVote(opt.id)} className={`w-full rounded-xl overflow-hidden border-4 transition-all duration-300 shadow-lg ${userVote === opt.id ? 'border-blue-500' : 'border-transparent'} ${isDisabled ? 'cursor-not-allowed opacity-80' : ''}`} disabled={isDisabled}>
+                                    <SvgPlaceholder w={400} h={600} text={opt.text} bgColor={i === 0 ? '#020617' : '#1e293b'} textColor="#93c5fd" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                );
+            case 'ranking':
+                return (
+                    <div className="px-2">
+                        {!userVote ? rankedItems.map((item, index) => (
+                            <div key={item.id} draggable={!isPollClosed} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDrop} onDragOver={(e) => e.preventDefault()}
+                                className={`flex items-center space-x-3 bg-gray-100 dark:bg-gray-700 p-3 my-2 rounded-lg border border-gray-200 dark:border-gray-600 ${isPollClosed ? 'cursor-not-allowed opacity-70' : 'cursor-grab active:cursor-grabbing'}`}>
+                                <span className="font-bold text-gray-400">{index + 1}</span>
+                                <MenuIcon />
+                                <span className="font-semibold text-gray-800 dark:text-gray-200">{item.text}</span>
+                            </div>
+                        )) : rankedItems.map((item, index) => (
+                            <div key={item.id} className="flex items-center space-x-3 bg-blue-50 dark:bg-blue-900/30 p-3 my-2 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <span className="font-bold text-blue-500">{index + 1}</span>
+                                <span className="font-semibold text-gray-800 dark:text-gray-200">{item.text}</span>
+                            </div>
+                        ))}
+                        {!userVote && <button onClick={() => handleVote('ranked')} disabled={isDisabled} className={`w-full mt-3 p-3 bg-blue-600 text-white font-bold rounded-lg transition-colors ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}>Submit Rank</button>}
+                    </div>
+                );
+            case 'slider':
+                return (
+                    <div className="px-4 py-6">
+                        <input type="range" min={0} max={100} value={sliderValue} onChange={(e) => setSliderValue(Number(e.target.value))} disabled={isDisabled} className={`w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none accent-blue-600 dark:accent-blue-500 ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} />
+                        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            <span>{poll.options[0].text}</span>
+                            <span>{poll.options[1].text}</span>
+                        </div>
+                        {userVote && <p className="text-center font-bold text-xl mt-4 text-blue-600 dark:text-blue-400">You voted: {sliderValue}</p>}
+                        {!userVote && <button onClick={() => handleVote(sliderValue)} disabled={isDisabled} className={`w-full mt-6 p-3 bg-blue-600 text-white font-bold rounded-lg transition-colors ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}>Submit Rating</button>}
+                    </div>
+                );
+            default: // multiple_choice and binary
+                return (
+                    <div className="px-2">{poll.options.map(option => {
+                        let borderClass = "border-gray-200 dark:border-gray-600";
+                        let bgClass = "bg-white dark:bg-gray-700";
+
+                        if (userVote) {
+                            if (userVote === option.id) {
+                                borderClass = "border-blue-500";
+                                bgClass = "bg-blue-50 dark:bg-blue-900/30";
+                            }
+                        }
+
+                        return (
+                            <button key={option.id} onClick={() => handleVote(option.id)} className={`relative w-full text-left p-3 my-2 border rounded-lg transition-all duration-300 overflow-hidden ${borderClass} ${bgClass} ${!userVote && !isDisabled ? "hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-600" : ""} ${isDisabled && userVote !== option.id ? "opacity-60 cursor-not-allowed" : ""}`} disabled={isDisabled}>
+                                <div className="absolute top-0 left-0 h-full bg-blue-100 dark:bg-blue-500/30 transition-all duration-500 ease-out" style={{ width: (userVote || isPollClosed) ? `${(poll.votes[option.id] / getTotalVotes(poll.votes) * 100)}%` : '0%' }}></div>
+                                <div className="relative z-10 flex justify-between items-center">
+                                    <span className="font-semibold text-gray-800 dark:text-gray-200 text-base">{option.text}</span>
+                                    {(userVote || isPollClosed) && <span className="font-bold text-sm text-blue-600 dark:text-blue-400">{((poll.votes[option.id] / getTotalVotes(poll.votes)) * 100 || 0).toFixed(0)}%</span>}
+                                </div>
+                            </button>
+                        )
+                    })}</div>
+                );
+        }
+    };
+
+    return (
+        <div className="h-full w-full flex items-center justify-center p-3 snap-center relative">
+            <div className="w-full h-full bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 flex flex-col justify-between p-4 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex-shrink-0 flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700/50">
+                    <button onClick={() => onNavigate('profile', poll.creator)} className="flex items-center space-x-3 text-left group">
+                        <img src={poll.creator.avatar} alt={poll.creator.username} className="w-10 h-10 rounded-full transition-transform group-hover:scale-110" />
+                        <div>
+                            <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{poll.creator.username}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{timeAgo(poll.timestamp)}</p>
+                        </div>
+                    </button>
+                    <div className="flex items-center space-x-2">
+                        {isPollClosed && (
+                            <span className="text-xs font-bold text-red-500 border border-red-500 px-2 py-0.5 rounded-full">
+                                {isTimeExpired ? 'Expired' : 'Ended'}
+                            </span>
+                        )}
+                        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">{poll.category}</span>
+                    </div>
+                </div>
+
+                {/* Main container with scroll enabled for overflow and vertical centering for short content */}
+                <main className="flex-grow relative overflow-y-auto scrollbar-hide my-2">
+                    <div className="min-h-full flex flex-col justify-center py-2">
+                        {/* For Survey type, the question is usually part of the participation card, so we might duplicate or hide it here.
+                        Based on screenshot 1, the card title is "Help us improve...", which corresponds to poll.question.
+                        The actual survey questions are inside the survey page.
+                        So for 'survey' type, we can still show poll.question as the main title here.
+                    */}
+                        <h2 className="text-xl font-bold mb-2 text-center leading-tight text-gray-900 dark:text-gray-50 px-2 flex-shrink-0">
+                            {poll.question}
+                        </h2>
+
+                        {poll.description && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400 px-2 relative mb-2 flex-shrink-0">
+                                <p className="line-clamp-2">{poll.description}</p>
+                                {poll.description.length > 100 && (
+                                    <button onClick={() => setShowFullDescription(true)} className="absolute bottom-0 right-0 text-blue-600 font-semibold bg-gradient-to-r from-transparent via-white dark:via-gray-800 to-white dark:to-gray-800 pl-4">more</button>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="mt-2 relative">
+                            {renderPollContent()}
+                            {isPollClosed && !userVote && !poll.pollType.includes('survey') && poll.pollType !== 'swipe' && (
+                                <div className="text-center mt-2 text-xs font-bold text-red-500">
+                                    {isTimeExpired ? 'Voting time has ended' : 'Maximum vote limit reached'}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </main>
+
+                <footer className="flex-shrink-0 flex justify-between items-center text-gray-600 dark:text-gray-400 p-2 border-t border-gray-100 dark:border-gray-700/50">
+                    <div className="flex items-center space-x-4">
+                        <button onClick={() => handleInteract('like')} className={`flex items-center space-x-1 transition-colors ${interaction === 'like' ? 'text-blue-600 dark:text-blue-400' : 'hover:text-blue-600 dark:hover:text-blue-400'}`}><ThumbUpIcon active={interaction === 'like'} /> <span className="text-sm">{poll.likes}</span></button>
+                        <button onClick={() => handleInteract('dislike')} className={`flex items-center space-x-1 transition-colors ${interaction === 'dislike' ? 'text-red-600 dark:text-red-500' : 'hover:text-red-600 dark:hover:text-red-500'}`}><ThumbDownIcon active={interaction === 'dislike'} /> <span className="text-sm">{poll.dislikes}</span></button>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                        <button onClick={handleShare} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ShareIcon /></button>
+                        {poll.pollType !== 'swipe' && poll.pollType !== 'survey' && <button onClick={() => onNavigate('results', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChartBarIcon /> <span className="text-sm">{getTotalVotes(poll.votes)}</span></button>}
+                        <button onClick={() => onNavigate('comments', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChatIcon /> <span className="text-sm">{poll.comments.length}</span></button>
+                    </div>
+                </footer>
+            </div>
+
+            {/* Full Description Modal - Moved Outside Main for clean overlay */}
+            {showFullDescription && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in rounded-2xl" onClick={() => setShowFullDescription(false)}>
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 m-8 max-w-sm shadow-xl border border-gray-700" onClick={e => e.stopPropagation()}>
+                        <h3 className="font-bold mb-2 text-gray-900 dark:text-gray-100">{poll.question}</h3>
+                        <p className="text-gray-600 dark:text-gray-300 text-sm">{poll.description}</p>
+                        <button onClick={() => setShowFullDescription(false)} className="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg font-semibold">Close</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default PollCard;

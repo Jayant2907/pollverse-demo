@@ -1,0 +1,7 @@
+{
+  "name": "PollVerse",
+  "description": "A mobile-first social polling application allowing users to create, vote on, and discuss various types of polls including rankings, sliders, and image battles.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
