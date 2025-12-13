@@ -6,20 +6,23 @@ import { ChevronLeftIcon, ListIcon, ImageIcon, RankIcon, SliderIcon, HeartIcon, 
 interface AddPollPageProps {
     onBack: () => void;
     onPollCreate: (pollData: Partial<Poll>) => void;
+    initialData?: Poll;
 }
 
-const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate }) => {
-    const [pollType, setPollType] = useState<Poll['pollType']>('multiple_choice');
-    const [question, setQuestion] = useState('');
-    const [description, setDescription] = useState('');
-    const [category, setCategory] = useState(CATEGORIES[1]);
-    const [options, setOptions] = useState<PollOption[]>([
-        { id: 1, text: '' },
-        { id: 2, text: '' },
-    ]);
+const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initialData }) => {
+    const [pollType, setPollType] = useState<Poll['pollType']>(initialData?.pollType || 'multiple_choice');
+    const [question, setQuestion] = useState(initialData ? `${initialData.question} (Copy)` : '');
+    const [description, setDescription] = useState(initialData?.description || '');
+    const [tags, setTags] = useState(initialData?.tags?.join(' ') || '');
+    const [category, setCategory] = useState(initialData?.category || CATEGORIES[1]);
+    const [options, setOptions] = useState<PollOption[]>(
+        initialData?.options?.map(opt => ({ ...opt, id: Date.now() + Math.random() })) || [
+            { id: 1, text: '' },
+            { id: 2, text: '' },
+        ]);
 
     // Swipe result config
-    const [swipeResults, setSwipeResults] = useState({ lowScoreTitle: 'You are Basic', highScoreTitle: 'You are Unique' });
+    const [swipeResults, setSwipeResults] = useState(initialData?.swipeResults || { lowScoreTitle: 'You are Basic', highScoreTitle: 'You are Unique' });
 
     // Advanced Config
     const [expiresAt, setExpiresAt] = useState('');
@@ -70,6 +73,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate }) => {
             pollType,
             options: finalOptions.map(opt => ({ ...opt, id: `opt-${Math.random()}` })),
             category,
+            tags: tags.split(' ').map(t => t.trim().replace(/^#/, '')).filter(t => t.length > 0),
             ...(pollType === 'swipe' ? { swipeResults } : {}),
             expiresAt: expiresAt ? new Date(expiresAt) : undefined,
             maxVotes: maxVotes ? parseInt(maxVotes) : undefined,
@@ -178,6 +182,18 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate }) => {
                         className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
                         rows={2}
                     ></textarea>
+                </section>
+
+                <section>
+                    <InputLabel>Hashtags (Optional)</InputLabel>
+                    <input
+                        type="text"
+                        value={tags}
+                        onChange={(e) => setTags(e.target.value)}
+                        placeholder="e.g. #sports #cricket (separated by space)"
+                        className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Separate tags with spaces.</p>
                 </section>
 
                 <section>

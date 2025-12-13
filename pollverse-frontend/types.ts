@@ -46,10 +46,11 @@ export interface Poll {
   likes: number;
   dislikes: number;
   category: string;
+  tags: string[];
   timestamp: Date;
   swipeResults?: SwipeResult; // Only for 'swipe' type
   surveyQuestions?: SurveyQuestion[]; // For multi-page surveys
-  
+
   // Expiration Logic
   expiresAt?: Date;
   maxVotes?: number;

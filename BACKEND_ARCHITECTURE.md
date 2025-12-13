@@ -52,6 +52,7 @@ The architecture prioritizes **read scalability** for the feed and **write throu
 *   `question` (Text).
 *   `description` (Text).
 *   `category` (String): e.g., "Sports", "Tech".
+*   `tags` (Array<String>): Viral hashtags e.g. ["#worldcup", "#viral"].
 *   `settings` (JSONB): Flexible configuration.
     *   *Example*: `{ "swipe_labels": {"left": "Nay", "right": "Yay"}, "allow_anonymous": false }`.
 *   `constraints` (JSONB): Rules for closing.

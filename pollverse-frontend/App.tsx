@@ -144,7 +144,8 @@ function App() {
         if (searchQuery.trim() !== '') {
             tempPolls = tempPolls.filter(p =>
                 p.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (p.tags && p.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())))
             );
         }
 
@@ -164,7 +165,7 @@ function App() {
             case 'settings':
                 return <SettingsPage onBack={() => handleNavigation('profile', currentUser)} />;
             case 'addPoll':
-                return <AddPollPage onBack={() => setPage({ name: 'feed' })} onPollCreate={handleCreatePoll} />;
+                return <AddPollPage onBack={() => setPage({ name: 'feed' })} onPollCreate={handleCreatePoll} initialData={page.data} />;
             case 'login':
                 return <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setPage({ name: 'feed' })} />;
             case 'editProfile':
