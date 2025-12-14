@@ -311,7 +311,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                     <div className="flex items-center space-x-4">
                         <button onClick={handleShare} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ShareIcon /></button>
                         {poll.pollType !== 'swipe' && poll.pollType !== 'survey' && <button onClick={() => onNavigate('results', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChartBarIcon /> <span className="text-sm">{getTotalVotes(poll.votes)}</span></button>}
-                        <button onClick={() => onNavigate('comments', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChatIcon /> <span className="text-sm">{poll.comments.length}</span></button>
+                        <button onClick={() => onNavigate('comments', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChatIcon /> <span className="text-sm">{poll.comments?.length || 0}</span></button>
                         <button onClick={() => onNavigate('addPoll', poll)} className="flex items-center space-x-1.5 transition-colors text-gray-400 hover:text-green-600 dark:hover:text-green-400" title="Use as Template">
                             <DuplicateIcon />
                         </button>

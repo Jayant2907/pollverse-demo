@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { PollService } from './services/PollService';
 import { ThemeProvider } from './context/ThemeContext';
 import { PageState, Poll, User } from './types';
-import { INITIAL_MOCK_POLLS, MOCK_USER, CATEGORIES, getTotalVotes } from './constants';
+import { MOCK_USER, CATEGORIES } from './constants';
 import {
-    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, XIcon
+    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, XIcon, DuplicateIcon
 } from './components/Icons';
 import PollCard from './components/poll/PollCard';
 import PollCardSkeleton from './components/poll/PollCardSkeleton';
@@ -20,6 +21,7 @@ import ResultsPage from './pages/ResultsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import SettingsPage from './pages/SettingsPage';
 import SurveyPage from './pages/SurveyPage';
+import AdminPage from './pages/AdminPage';
 
 function App() {
     const [page, setPage] = useState<PageState>({ name: 'feed', data: null });
@@ -38,10 +40,11 @@ function App() {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        setTimeout(() => {
-            setPolls([...INITIAL_MOCK_POLLS].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
+        setIsLoading(true);
+        PollService.getFeed().then(data => {
+            setPolls(data);
             setIsLoading(false);
-        }, 1500);
+        });
     }, []);
 
     const showToast = (message: string) => {
@@ -72,18 +75,10 @@ function App() {
     };
 
     const handleCreatePoll = (newPollData: Partial<Poll>) => {
-        const newPoll: Poll = {
-            ...newPollData,
-            id: Date.now(),
-            creator: currentUser,
-            votes: {},
-            comments: [],
-            likes: 0,
-            dislikes: 0,
-            timestamp: new Date(),
-        } as Poll;
-        setPolls(prevPolls => [newPoll, ...prevPolls]);
-        setPage({ name: 'feed' });
+        PollService.createPoll({ ...newPollData, creator: currentUser }).then(newPoll => {
+            setPolls(prevPolls => [newPoll, ...prevPolls]);
+            setPage({ name: 'feed' });
+        });
     };
 
     const handleNavigation = (name: string, data?: any) => {
@@ -130,27 +125,47 @@ function App() {
         });
     };
 
-    const filteredPolls = useMemo(() => {
-        let tempPolls = [...polls];
+    useEffect(() => {
+        const fetchFeed = async () => {
+            setIsLoading(true);
+            try {
+                // Determine filters
+                const filters: any = {};
+                if (activeCategory !== 'For You') filters.category = activeCategory;
+                if (searchQuery.trim() !== '') filters.search = searchQuery;
+                // Note: Complex internal following logic is hard to do pure backend without auth token. 
+                // For now, if "Following", we might filter locally or ignore. 
+                // Let's assume standard feed for now.
 
-        if (activeCategory === 'Following') {
-            tempPolls = tempPolls.filter(p => currentUser.following.includes(p.creator.id));
-        } else if (activeCategory === 'Trending') {
-            tempPolls.sort((a, b) => getTotalVotes(b.votes) - getTotalVotes(a.votes));
-        } else if (activeCategory !== 'For You') {
-            tempPolls = tempPolls.filter(p => p.category === activeCategory);
-        }
+                const data = await PollService.getFeed(filters);
 
-        if (searchQuery.trim() !== '') {
-            tempPolls = tempPolls.filter(p =>
-                p.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                (p.tags && p.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())))
-            );
-        }
+                // Client side sort for Trending if backend didn't handle it perfectly or for visual snap
+                if (activeCategory === 'Trending') {
+                    // data.sort(...) 
+                }
 
-        return tempPolls;
-    }, [polls, activeCategory, searchQuery, currentUser.following]);
+                if (activeCategory === 'Following') {
+                    // Client side filter for following since we don't have full auth backend yet
+                    const followingPolls = data.filter(p => currentUser.following.includes(p.creator.id));
+                    setPolls(followingPolls);
+                } else {
+                    setPolls(data);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+            setIsLoading(false);
+        };
+
+        const debounceTimer = setTimeout(() => {
+            fetchFeed();
+        }, 300); // Debounce search
+
+        return () => clearTimeout(debounceTimer);
+    }, [activeCategory, searchQuery, currentUser.following]);
+
+    // Removed local filtering `filteredPolls` useMemo as we now fetch from backend
+    const filteredPolls = polls;
 
     const renderDetailContent = () => {
         switch (page.name) {
@@ -172,12 +187,31 @@ function App() {
                 return <EditProfilePage onBack={() => handleNavigation('profile', currentUser)} currentUser={currentUser} onUpdateUser={handleUpdateUser} />;
             case 'survey':
                 return <SurveyPage poll={page.data} onBack={() => setPage({ name: 'feed' })} onComplete={handleVote} />;
+            case 'admin':
+                return <AdminPage onBack={() => setPage({ name: 'feed' })} />;
             default:
                 return null;
         }
     }
 
     const isDetailPage = page.name !== 'feed';
+
+    const topHashtags = useMemo(() => {
+        const tagCounts: Record<string, number> = {};
+        polls.forEach(poll => {
+            if (poll.tags) {
+                poll.tags.forEach(tag => {
+                    const normalizedTag = tag.toLowerCase();
+                    tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
+                });
+            }
+        });
+
+        return Object.entries(tagCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([tag]) => tag);
+    }, [polls]);
 
     return (
         <ThemeProvider>
@@ -197,20 +231,41 @@ function App() {
                                     <span className="text-xs font-bold text-blue-600">Auto</span>
                                     <Toggle enabled={autoScrollEnabled} onChange={() => setAutoScrollEnabled(!autoScrollEnabled)} />
                                 </div>
+                                <button onClick={() => setPage({ name: 'admin' })} className="text-gray-500 hover:text-blue-500" title="Admin/Seed"><DuplicateIcon /></button>
                                 <button onClick={() => handleNavigation('notifications')} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><BellIcon /></button>
                             </div>
                         </div>
 
                         {searchActive ?
-                            <div className="flex-shrink-0 w-full p-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 flex items-center space-x-2 animate-fade-in">
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search polls..."
-                                    className="w-full bg-gray-100 dark:bg-gray-800 border-transparent rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <button onClick={() => { setSearchActive(false); setSearchQuery(''); }} className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><XIcon /></button>
+                            <div className="flex-shrink-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 flex flex-col animate-fade-in relative z-10 transition-all duration-300">
+                                <div className="flex items-center space-x-2 p-2">
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Search polls..."
+                                        className="w-full bg-gray-100 dark:bg-gray-800 border-transparent rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                        autoFocus
+                                    />
+                                    <button onClick={() => { setSearchActive(false); setSearchQuery(''); }} className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><XIcon /></button>
+                                </div>
+
+                                {searchQuery.trim() === '' && topHashtags.length > 0 && (
+                                    <div className="px-4 pb-3 animate-fade-in">
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Trending Topics</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {topHashtags.map(tag => (
+                                                <button
+                                                    key={tag}
+                                                    onClick={() => setSearchQuery(tag)}
+                                                    className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm rounded-full font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                                                >
+                                                    #{tag}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div> :
                             <div className="flex-shrink-0 w-full overflow-x-auto py-3 px-4 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
                                 <div className="flex space-x-3">{CATEGORIES.map(category => (<button key={category} onClick={() => setActiveCategory(category)} className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${activeCategory === category ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{category}</button>))}</div>
