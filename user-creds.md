@@ -1,0 +1,32 @@
+# 10 Test User Credentials
+Username	Email	Password
+alice_polls	
+alice@pollverse.com
+alice123
+bob_voter	
+bob@pollverse.com
+bob123
+charlie_tech	
+charlie@pollverse.com
+charlie123
+diana_sports	
+diana@pollverse.com
+diana123
+evan_movies	
+evan@pollverse.com
+evan123
+fiona_food	
+fiona@pollverse.com
+fiona123
+george_travel	
+george@pollverse.com
+george123
+hannah_biz	
+hannah@pollverse.com
+hannah123
+ivan_gamer	
+ivan@pollverse.com
+ivan123
+julia_news	
+julia@pollverse.com
+julia123

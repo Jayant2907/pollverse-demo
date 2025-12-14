@@ -256,7 +256,10 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
 ];
 
-export const getTotalVotes = (votes: Record<string | number, number>) => Object.values(votes).reduce((sum, count) => sum + count, 0);
+export const getTotalVotes = (votes: Record<string | number, number> | null | undefined) => {
+  if (!votes || typeof votes !== 'object') return 0;
+  return Object.values(votes).reduce((sum, count) => sum + (count || 0), 0);
+};
 
 export const timeAgo = (date: Date) => {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);

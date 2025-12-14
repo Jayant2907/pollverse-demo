@@ -1,96 +1,142 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppLogo, ChevronLeftIcon } from '../components/Icons';
 
 interface LoginPageProps {
-    onLoginSuccess: () => void;
+    onLoginSuccess: (user: any) => void;
     onBack: () => void;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) => {
-    const [step, setStep] = useState<'enter_mobile' | 'enter_otp'>('enter_mobile');
-    const [mobile, setMobile] = useState('');
-    const [otp, setOtp] = useState('');
-    const [error, setError] = useState('');
+// Pre-populated user emails for quick login
+const QUICK_LOGIN_USERS = [
+    { email: 'alice@pollverse.com', username: 'alice_polls' },
+    { email: 'bob@pollverse.com', username: 'bob_voter' },
+    { email: 'charlie@pollverse.com', username: 'charlie_tech' },
+    { email: 'diana@pollverse.com', username: 'diana_sports' },
+    { email: 'evan@pollverse.com', username: 'evan_movies' },
+];
 
+const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) => {
+    const [email, setEmail] = useState('alice@pollverse.com'); // Default to alice
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Force focus when step changes
     useEffect(() => {
         if (inputRef.current) {
             inputRef.current.focus();
         }
-    }, [step]);
+    }, []);
 
-    const handleSendOtp = () => {
-        if (mobile.length < 10) {
-            setError('Please enter a valid 10-digit mobile number.');
+    const handleLogin = async () => {
+        if (!email.includes('@')) {
+            setError('Please enter a valid email address.');
             return;
         }
+
+        setLoading(true);
         setError('');
-        console.log("OTP Sent (mock): 123456"); 
-        setStep('enter_otp');
+
+        try {
+            // Try to find user by email in backend
+            const response = await fetch('http://localhost:3000/users/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password: '' }) // No password required
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.user) {
+                onLoginSuccess(result.user);
+            } else {
+                // If user not found, create a mock user for now
+                const mockUser = {
+                    id: Date.now(),
+                    username: email.split('@')[0],
+                    email: email,
+                    avatar: `https://i.pravatar.cc/150?u=${email}`,
+                    points: 0,
+                    following: [],
+                    pollsVotedOn: []
+                };
+                onLoginSuccess(mockUser);
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            // Fallback to mock login if backend is down
+            const mockUser = {
+                id: Date.now(),
+                username: email.split('@')[0],
+                email: email,
+                avatar: `https://i.pravatar.cc/150?u=${email}`,
+                points: 0,
+                following: [],
+                pollsVotedOn: []
+            };
+            onLoginSuccess(mockUser);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleVerifyOtp = () => {
-        if (otp === '123456') { 
-            setError('');
-            onLoginSuccess();
-        } else {
-            setError('Invalid OTP. Please try again.');
-        }
+    const handleQuickLogin = (userEmail: string) => {
+        setEmail(userEmail);
+        // Auto-submit after setting email
+        setTimeout(() => {
+            const btn = document.getElementById('login-btn');
+            if (btn) btn.click();
+        }, 100);
     };
 
     return (
-        <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in p-6 justify-center text-center">
+        <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in p-6 justify-center text-center overflow-y-auto">
             <button onClick={onBack} className="absolute top-4 left-4 text-blue-600 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
                 <ChevronLeftIcon />
             </button>
+
             <div className="w-full max-w-sm mx-auto">
                 <div className="flex justify-center"><AppLogo /></div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-4">Welcome to PollVerse</h1>
-                
-                {step === 'enter_mobile' ? (
-                    <div key="step-mobile">
-                        <p className="text-gray-600 dark:text-gray-400 mt-2 mb-6">Enter your mobile number to continue.</p>
-                        <div className="flex items-center bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 focus-within:ring-2 focus-within:ring-blue-500">
-                            <span className="font-semibold text-gray-500 pl-2">+91</span>
-                            <input
-                                ref={inputRef}
-                                type="tel"
-                                autoFocus
-                                value={mobile}
-                                onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                                placeholder="98765 43210"
-                                className="w-full bg-transparent p-2 text-lg font-semibold focus:outline-none"
-                                maxLength={10}
-                            />
-                        </div>
-                        <button onClick={handleSendOtp} className="w-full mt-6 p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">
-                            Send OTP
-                        </button>
-                    </div>
-                ) : (
-                    <div key="step-otp">
-                        <p className="text-gray-600 dark:text-gray-400 mt-2 mb-6">Enter the 6-digit OTP sent to +91 {mobile}.</p>
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            autoFocus
-                            value={otp}
-                            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            placeholder="_ _ _ _ _ _"
-                            className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 rounded-lg p-3 text-center text-2xl tracking-[1em] font-semibold focus:ring-blue-500 focus:border-blue-500"
-                            maxLength={6}
-                        />
-                        <button onClick={handleVerifyOtp} className="w-full mt-6 p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">
-                            Verify & Sign In
-                        </button>
-                        <button onClick={() => setStep('enter_mobile')} className="mt-4 text-sm text-gray-500 dark:text-gray-400 hover:underline">
-                            Change Number
-                        </button>
-                    </div>
-                )}
+                <p className="text-gray-600 dark:text-gray-400 mt-2 mb-6">Enter your email to continue.</p>
+
+                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-3 focus-within:ring-2 focus-within:ring-blue-500">
+                    <input
+                        ref={inputRef}
+                        type="email"
+                        autoFocus
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="your@email.com"
+                        className="w-full bg-transparent text-lg focus:outline-none"
+                    />
+                </div>
+
+                <button
+                    id="login-btn"
+                    onClick={handleLogin}
+                    disabled={loading}
+                    className="w-full mt-6 p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                    {loading ? 'Signing in...' : 'Sign In'}
+                </button>
+
                 {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
+
+                {/* Quick Login Options */}
+                <div className="mt-8">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wider">Quick Login As</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                        {QUICK_LOGIN_USERS.map(user => (
+                            <button
+                                key={user.email}
+                                onClick={() => handleQuickLogin(user.email)}
+                                className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            >
+                                {user.username}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     );

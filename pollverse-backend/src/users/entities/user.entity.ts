@@ -11,6 +11,12 @@ export class User {
     @Column({ nullable: true })
     avatar: string;
 
+    @Column({ unique: true, nullable: true })
+    email: string;
+
+    @Column({ nullable: true })
+    password: string; // In production, store hashed password
+
     @Column({ default: 0 })
     points: number;
 

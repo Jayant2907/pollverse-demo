@@ -36,4 +36,41 @@ export class UsersController {
   remove(@Param('id') id: string) {
     return this.usersService.remove(+id);
   }
+
+  // ============ INTERACTIONS ============
+  @Post(':id/interaction/:pollId')
+  setInteraction(
+    @Param('id') id: string,
+    @Param('pollId') pollId: string,
+    @Body() body: { type: 'like' | 'dislike' | null }
+  ) {
+    return this.usersService.setInteraction(+id, +pollId, body.type);
+  }
+
+  @Get(':id/interaction/:pollId')
+  getInteraction(@Param('id') id: string, @Param('pollId') pollId: string) {
+    return this.usersService.getInteraction(+id, +pollId);
+  }
+
+  // ============ FOLLOWING ============
+  @Post(':id/follow/:targetId')
+  follow(@Param('id') id: string, @Param('targetId') targetId: string) {
+    return this.usersService.follow(+id, +targetId);
+  }
+
+  @Post(':id/unfollow/:targetId')
+  unfollow(@Param('id') id: string, @Param('targetId') targetId: string) {
+    return this.usersService.unfollow(+id, +targetId);
+  }
+
+  // ============ SIMPLE LOGIN (No Auth for now) ============
+  @Post('login')
+  async login(@Body() body: { email: string; password?: string }) {
+    const user = await this.usersService.findByEmail(body.email);
+    if (user) {
+      // No password check for dev mode - just email based login
+      return { success: true, user: { ...user, password: undefined } };
+    }
+    return { success: false, message: 'User not found' };
+  }
 }

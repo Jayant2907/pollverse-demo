@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Poll } from '../../types';
+import { Poll, User } from '../../types';
 import { getTotalVotes, timeAgo } from '../../constants';
 import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon, DuplicateIcon } from '../Icons';
 import SvgPlaceholder from '../ui/SvgPlaceholder';
@@ -14,12 +14,55 @@ interface PollCardProps {
     showToast: (message: string) => void;
     onVote: (pollId: number | string) => void;
     onVoteComplete?: () => void;
+    currentUser: User;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete, currentUser }) => {
     const [userVote, setUserVote] = useState<string | number | null>(null);
     const [interaction, setInteraction] = useState<'like' | 'dislike' | null>(null);
+    const [likesCount, setLikesCount] = useState(poll.likes || 0);
+    const [dislikesCount, setDislikesCount] = useState(poll.dislikes || 0);
     const [showFullDescription, setShowFullDescription] = useState(false);
+
+    // ... (rest of state)
+
+    const handleInteract = async (type: 'like' | 'dislike') => {
+        if (!isLoggedIn) {
+            requireLogin(() => handleInteract(type));
+            return;
+        }
+        triggerHaptic();
+
+        // Optimistic Update
+        const previousInteraction = interaction;
+        if (interaction === type) {
+            setInteraction(null);
+            if (type === 'like') setLikesCount(prev => prev - 1);
+            else setDislikesCount(prev => prev - 1);
+        } else {
+            setInteraction(type);
+            if (type === 'like') {
+                setLikesCount(prev => prev + 1);
+                if (previousInteraction === 'dislike') setDislikesCount(prev => prev - 1);
+            } else {
+                setDislikesCount(prev => prev + 1);
+                if (previousInteraction === 'like') setLikesCount(prev => prev - 1);
+            }
+        }
+
+        // API Call
+        try {
+            const PollService = (await import('../../services/PollService')).PollService;
+            if (type === 'like') {
+                await PollService.likePoll(Number(poll.id));
+            } else {
+                await PollService.dislikePoll(Number(poll.id));
+            }
+        } catch (error) {
+            console.error("Interaction failed, reverting", error);
+            // Revert on error (could imply setting state back)
+        }
+    };
 
     // State for Ranking Polls
     const [rankedItems, setRankedItems] = useState(poll.options);
@@ -30,7 +73,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
     const [sliderValue, setSliderValue] = useState(50);
 
     // Check Expiration Logic
-    const totalVotes = getTotalVotes(poll.votes);
+    const totalVotes = getTotalVotes(poll.votes || {});
     const isTimeExpired = poll.expiresAt && new Date() > poll.expiresAt;
     const isMaxVotesReached = poll.maxVotes ? totalVotes >= poll.maxVotes : false;
     const isPollClosed = !!(isTimeExpired || isMaxVotesReached);
@@ -51,33 +94,43 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         });
     };
 
-    const handleVote = (optionId: string | number) => {
+    const handleVote = async (optionId: string | number) => {
         if (isPollClosed) return;
 
         if (!isLoggedIn) {
             requireLogin(() => handleVote(optionId));
             return;
         }
+
         if (!userVote) {
+            // Optimistic Update can be tricky if network is slow but we revert on error
             triggerHaptic();
             triggerConfetti();
             setUserVote(optionId);
-            onVote(poll.id);
 
-            if (onVoteComplete) {
-                onVoteComplete();
+            try {
+                const PollService = (await import('../../services/PollService')).PollService;
+                const result = await PollService.vote(Number(poll.id), Number(currentUser.id), String(optionId));
+
+                if (result.success) {
+                    onVote(poll.id); // Notify App to update user stats
+                    if (onVoteComplete) {
+                        onVoteComplete();
+                    }
+                } else {
+                    // Revert on failure (e.g. maxVotes reached)
+                    setUserVote(null);
+                    showToast(result.message || 'Vote failed');
+                }
+            } catch (error) {
+                console.error("Vote failed", error);
+                setUserVote(null);
+                showToast("Failed to cast vote");
             }
         }
     };
 
-    const handleInteract = (type: 'like' | 'dislike') => {
-        if (!isLoggedIn) {
-            requireLogin(() => handleInteract(type));
-            return;
-        }
-        triggerHaptic();
-        setInteraction(prev => prev === type ? null : type);
-    };
+
 
     const handleShare = async () => {
         const shareData = {
@@ -247,10 +300,10 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
             <div className="w-full h-full bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 flex flex-col justify-between p-4 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex-shrink-0 flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700/50">
                     <button onClick={() => onNavigate('profile', poll.creator)} className="flex items-center space-x-3 text-left group">
-                        <img src={poll.creator.avatar} alt={poll.creator.username} className="w-10 h-10 rounded-full transition-transform group-hover:scale-110" />
+                        <img src={poll.creator?.avatar || `https://i.pravatar.cc/150?u=${poll.creatorId || 1}`} alt={poll.creator?.username || 'User'} className="w-10 h-10 rounded-full transition-transform group-hover:scale-110" />
                         <div>
-                            <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{poll.creator.username}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{timeAgo(poll.timestamp)}</p>
+                            <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{poll.creator?.username || 'Unknown User'}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{poll.timestamp ? timeAgo(poll.timestamp) : ''}</p>
                         </div>
                     </button>
                     <div className="flex items-center space-x-2">
@@ -305,13 +358,13 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
 
                 <footer className="flex-shrink-0 flex justify-between items-center text-gray-600 dark:text-gray-400 p-2 border-t border-gray-100 dark:border-gray-700/50">
                     <div className="flex items-center space-x-4">
-                        <button onClick={() => handleInteract('like')} className={`flex items-center space-x-1 transition-colors ${interaction === 'like' ? 'text-blue-600 dark:text-blue-400' : 'hover:text-blue-600 dark:hover:text-blue-400'}`}><ThumbUpIcon active={interaction === 'like'} /> <span className="text-sm">{poll.likes}</span></button>
-                        <button onClick={() => handleInteract('dislike')} className={`flex items-center space-x-1 transition-colors ${interaction === 'dislike' ? 'text-red-600 dark:text-red-500' : 'hover:text-red-600 dark:hover:text-red-500'}`}><ThumbDownIcon active={interaction === 'dislike'} /> <span className="text-sm">{poll.dislikes}</span></button>
+                        <button onClick={() => handleInteract('like')} className={`flex items-center space-x-1 transition-colors ${interaction === 'like' ? 'text-blue-600 dark:text-blue-400' : 'hover:text-blue-600 dark:hover:text-blue-400'}`}><ThumbUpIcon active={interaction === 'like'} /> <span className="text-sm">{likesCount}</span></button>
+                        <button onClick={() => handleInteract('dislike')} className={`flex items-center space-x-1 transition-colors ${interaction === 'dislike' ? 'text-red-600 dark:text-red-500' : 'hover:text-red-600 dark:hover:text-red-500'}`}><ThumbDownIcon active={interaction === 'dislike'} /> <span className="text-sm">{dislikesCount}</span></button>
                     </div>
                     <div className="flex items-center space-x-4">
                         <button onClick={handleShare} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ShareIcon /></button>
                         {poll.pollType !== 'swipe' && poll.pollType !== 'survey' && <button onClick={() => onNavigate('results', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChartBarIcon /> <span className="text-sm">{getTotalVotes(poll.votes)}</span></button>}
-                        <button onClick={() => onNavigate('comments', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChatIcon /> <span className="text-sm">{poll.comments?.length || 0}</span></button>
+                        <button onClick={() => onNavigate('comments', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChatIcon /> <span className="text-sm">{poll.commentsCount ?? poll.comments?.length ?? 0}</span></button>
                         <button onClick={() => onNavigate('addPoll', poll)} className="flex items-center space-x-1.5 transition-colors text-gray-400 hover:text-green-600 dark:hover:text-green-400" title="Use as Template">
                             <DuplicateIcon />
                         </button>

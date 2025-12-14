@@ -36,13 +36,15 @@ export interface SwipeResult {
 
 export interface Poll {
   id: number | string;
-  creator: User;
+  creator?: User; // Optional since backend may only provide creatorId
+  creatorId?: number; // Backend field
   question: string;
   description?: string;
   pollType: 'multiple_choice' | 'survey' | 'binary' | 'image' | 'ranking' | 'slider' | 'swipe';
   options: PollOption[];
   votes: Record<string | number, number>;
   comments: Comment[];
+  commentsCount?: number;
   likes: number;
   dislikes: number;
   category: string;

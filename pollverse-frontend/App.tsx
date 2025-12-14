@@ -59,8 +59,16 @@ function App() {
         setPage({ name: 'login' });
     };
 
-    const handleLoginSuccess = () => {
+    const handleLoginSuccess = (user?: any) => {
         setIsLoggedIn(true);
+        if (user) {
+            setCurrentUser(prev => ({
+                ...prev,
+                ...user,
+                pollsVotedOn: user.pollsVotedOn || prev.pollsVotedOn || [],
+                following: user.following || prev.following || [],
+            }));
+        }
         if (loginRedirectAction) {
             loginRedirectAction();
             setLoginRedirectAction(null);
@@ -146,7 +154,7 @@ function App() {
 
                 if (activeCategory === 'Following') {
                     // Client side filter for following since we don't have full auth backend yet
-                    const followingPolls = data.filter(p => currentUser.following.includes(p.creator.id));
+                    const followingPolls = data.filter(p => p.creator?.id && currentUser.following.includes(p.creator.id));
                     setPolls(followingPolls);
                 } else {
                     setPolls(data);
@@ -174,7 +182,7 @@ function App() {
             case 'results':
                 return <ResultsPage poll={page.data} onBack={() => setPage({ name: 'feed' })} />;
             case 'comments':
-                return <CommentsPage poll={page.data} onBack={() => setPage({ name: 'feed' })} isLoggedIn={isLoggedIn} requireLogin={requireLogin} />;
+                return <CommentsPage poll={page.data} onBack={() => setPage({ name: 'feed' })} isLoggedIn={isLoggedIn} requireLogin={requireLogin} currentUser={currentUser} />;
             case 'notifications':
                 return <NotificationsPage onBack={() => setPage({ name: 'feed' })} />;
             case 'settings':
@@ -289,6 +297,7 @@ function App() {
                                         showToast={showToast}
                                         onVote={handleVote}
                                         onVoteComplete={handleVoteComplete}
+                                        currentUser={currentUser}
                                     />
                                 ))
                             )}

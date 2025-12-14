@@ -17,7 +17,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
     const isMainUser = user.id === currentUser.id;
     const isFollowing = currentUser.following.includes(user.id);
 
-    const userPolls = allPolls.filter(p => p.creator.id === user.id);
+    const userPolls = allPolls.filter(p => p.creator?.id === user.id);
     const votedPolls = allPolls.filter(p => currentUser.pollsVotedOn.includes(p.id));
 
     return (
@@ -70,14 +70,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                         )}
                     </div>
                 </div>
-                 {isMainUser && (
-                     <div className="p-4 mt-4">
-                         <button onClick={onLogout} className="w-full flex items-center justify-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
-                             <LogoutIcon />
-                             <span>Logout</span>
-                         </button>
-                     </div>
-                 )}
+                {isMainUser && (
+                    <div className="p-4 mt-4">
+                        <button onClick={onLogout} className="w-full flex items-center justify-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                            <LogoutIcon />
+                            <span>Logout</span>
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

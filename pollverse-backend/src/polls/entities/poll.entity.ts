@@ -1,4 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import type { Comment } from './comment.entity';
 
 @Entity()
 export class Poll {
@@ -24,6 +26,16 @@ export class Poll {
     @Column()
     creatorId: number;
 
+    @ManyToOne(() => User, { eager: true }) // Optional eager, but good for feed
+    @JoinColumn({ name: 'creatorId' })
+    creator: User;
+
+    @OneToMany('Comment', 'poll')
+    comments: Comment[];
+
+    // Virtual property for count
+    commentsCount?: number;
+
     @Column({ default: 'multiple_choice' })
     pollType: string;
 
@@ -35,6 +47,21 @@ export class Poll {
 
     @Column({ default: 0 })
     dislikes: number;
+
+    // Swipe poll results
+    @Column('simple-json', { nullable: true })
+    swipeResults: { lowScoreTitle: string; highScoreTitle: string } | null;
+
+    // Survey questions for survey type polls
+    @Column('simple-json', { nullable: true })
+    surveyQuestions: any[] | null;
+
+    // Expiration settings
+    @Column({ type: 'timestamp', nullable: true })
+    expiresAt: Date | null;
+
+    @Column({ type: 'int', nullable: true })
+    maxVotes: number | null;
 
     @CreateDateColumn()
     createdAt: Date;
