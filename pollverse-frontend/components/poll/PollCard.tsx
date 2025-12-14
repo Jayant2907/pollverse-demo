@@ -53,10 +53,15 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         // API Call
         try {
             const PollService = (await import('../../services/PollService')).PollService;
-            if (type === 'like') {
-                await PollService.likePoll(Number(poll.id));
+            const userId = Number(currentUser.id);
+            if (interaction === type) {
+                await PollService.unlikePoll(Number(poll.id), userId);
             } else {
-                await PollService.dislikePoll(Number(poll.id));
+                if (type === 'like') {
+                    await PollService.likePoll(Number(poll.id), userId);
+                } else {
+                    await PollService.dislikePoll(Number(poll.id), userId);
+                }
             }
         } catch (error) {
             console.error("Interaction failed, reverting", error);

@@ -101,10 +101,28 @@ export const PollService = {
         }
     },
 
-    // ============ LIKES/DISLIKES ============
-    likePoll: async (pollId: number) => {
+    unvote: async (pollId: number, userId: number) => {
         try {
-            const response = await fetch(`${API_URL}/${pollId}/like`, { method: 'POST' });
+            const response = await fetch(`${API_URL}/${pollId}/vote`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+            return response.json();
+        } catch (error) {
+            console.error("Failed to unvote:", error);
+            throw error;
+        }
+    },
+
+    // ============ LIKES/DISLIKES ============
+    likePoll: async (pollId: number, userId: number) => {
+        try {
+            const response = await fetch(`${API_URL}/${pollId}/like`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
             return response.json();
         } catch (error) {
             console.error("Failed to like poll:", error);
@@ -112,12 +130,30 @@ export const PollService = {
         }
     },
 
-    dislikePoll: async (pollId: number) => {
+    dislikePoll: async (pollId: number, userId: number) => {
         try {
-            const response = await fetch(`${API_URL}/${pollId}/dislike`, { method: 'POST' });
+            const response = await fetch(`${API_URL}/${pollId}/dislike`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
             return response.json();
         } catch (error) {
             console.error("Failed to dislike poll:", error);
+            throw error;
+        }
+    },
+
+    unlikePoll: async (pollId: number, userId: number) => {
+        try {
+            const response = await fetch(`${API_URL}/${pollId}/like`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+            return response.json();
+        } catch (error) {
+            console.error("Failed to unlike poll:", error);
             throw error;
         }
     },

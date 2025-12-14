@@ -132,7 +132,10 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
                 ...template,
                 pollType,
                 creatorId: users[index % users.length].id,
-                votes: {},
+                votes: template.options.reduce((acc: any, opt: any) => {
+                    acc[opt.id] = Math.floor(Math.random() * 50);
+                    return acc;
+                }, {}),
                 likes: Math.floor(Math.random() * 100),
                 dislikes: Math.floor(Math.random() * 20),
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
@@ -231,7 +234,10 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
                     ...template,
                     pollType,
                     creatorId: usersInfo[index % usersInfo.length].id, // Use valid ID
-                    votes: {},
+                    votes: template.options.reduce((acc: any, opt: any) => {
+                        acc[opt.id] = Math.floor(Math.random() * 50);
+                        return acc;
+                    }, {}),
                     likes: Math.floor(Math.random() * 100),
                     dislikes: Math.floor(Math.random() * 20),
                     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now

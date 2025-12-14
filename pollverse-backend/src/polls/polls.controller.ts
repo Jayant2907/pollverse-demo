@@ -43,6 +43,11 @@ export class PollsController {
     return this.pollsService.vote(+id, body.userId, body.optionId);
   }
 
+  @Delete(':id/vote')
+  unvote(@Param('id') id: string, @Body('userId') userId: number) {
+    return this.pollsService.unvote(+id, +userId);
+  }
+
   @Get(':id/vote/:userId')
   getUserVote(@Param('id') id: string, @Param('userId') userId: string) {
     return this.pollsService.getUserVote(+id, +userId);
@@ -50,13 +55,23 @@ export class PollsController {
 
   // ============ LIKES/DISLIKES ============
   @Post(':id/like')
-  likePoll(@Param('id') id: string) {
-    return this.pollsService.likePoll(+id);
+  likePoll(@Param('id') id: string, @Body('userId') userId: number) {
+    return this.pollsService.likePoll(+id, +userId);
   }
 
   @Post(':id/dislike')
-  dislikePoll(@Param('id') id: string) {
-    return this.pollsService.dislikePoll(+id);
+  dislikePoll(@Param('id') id: string, @Body('userId') userId: number) {
+    return this.pollsService.dislikePoll(+id, +userId);
+  }
+
+  @Delete(':id/like')
+  unlikePoll(@Param('id') id: string, @Body('userId') userId: number) {
+    return this.pollsService.unlikePoll(+id, +userId);
+  }
+
+  @Delete(':id/dislike')
+  undislikePoll(@Param('id') id: string, @Body('userId') userId: number) {
+    return this.pollsService.unlikePoll(+id, +userId);
   }
 
   // ============ COMMENTS ============
