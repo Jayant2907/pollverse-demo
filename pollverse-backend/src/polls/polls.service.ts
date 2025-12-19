@@ -7,6 +7,7 @@ import { Poll } from './entities/poll.entity';
 import { Comment } from './entities/comment.entity';
 import { Vote } from './entities/vote.entity';
 import { Interaction } from '../users/entities/interaction.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PollsService {
@@ -19,6 +20,7 @@ export class PollsService {
     private voteRepository: Repository<Vote>,
     @InjectRepository(Interaction)
     private interactionRepository: Repository<Interaction>,
+    private readonly notificationsService: NotificationsService,
   ) { }
 
   async create(createPollDto: CreatePollDto) {
@@ -121,6 +123,18 @@ export class PollsService {
     poll.votes = votes;
     await this.pollsRepository.save(poll);
 
+    if (poll.creatorId && poll.creatorId !== userId) {
+      try {
+        await this.notificationsService.create({
+          recipientId: poll.creatorId,
+          actorId: userId,
+          type: 'vote',
+          resourceId: pollId,
+          resourceType: 'poll'
+        });
+      } catch (e) { console.error("Notification failed", e); }
+    }
+
     return { success: true, message: 'Vote recorded', votes: poll.votes };
   }
 
@@ -169,6 +183,10 @@ export class PollsService {
       await this.interactionRepository.save(interaction);
       poll.likes = (poll.likes || 0) + 1;
       await this.pollsRepository.save(poll);
+
+      if (poll.creatorId && poll.creatorId !== userId) {
+        this.notificationsService.create({ recipientId: poll.creatorId, actorId: userId, type: 'like', resourceId: pollId, resourceType: 'poll' }).catch(e => console.error(e));
+      }
     }
     return { success: true, likes: poll.likes, dislikes: poll.dislikes };
   }
@@ -194,6 +212,11 @@ export class PollsService {
       await this.interactionRepository.save(interaction);
       poll.dislikes = (poll.dislikes || 0) + 1;
       await this.pollsRepository.save(poll);
+
+      // Notify for dislike if desired
+      if (poll.creatorId && poll.creatorId !== userId) {
+        this.notificationsService.create({ recipientId: poll.creatorId, actorId: userId, type: 'dislike', resourceId: pollId, resourceType: 'poll' }).catch(e => console.error(e));
+      }
     }
     return { success: true, likes: poll.likes, dislikes: poll.dislikes };
   }
@@ -224,7 +247,13 @@ export class PollsService {
 
   async addComment(pollId: number, userId: number, text: string) {
     const comment = this.commentRepository.create({ pollId, userId, text });
-    return this.commentRepository.save(comment);
+    const saved = await this.commentRepository.save(comment);
+
+    const poll = await this.pollsRepository.findOneBy({ id: pollId });
+    if (poll && poll.creatorId && poll.creatorId !== userId) {
+      this.notificationsService.create({ recipientId: poll.creatorId, actorId: userId, type: 'comment', resourceId: pollId, resourceType: 'poll' }).catch(e => console.error(e));
+    }
+    return saved;
   }
 
   async likeComment(commentId: number) {

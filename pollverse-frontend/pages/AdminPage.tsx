@@ -1,4 +1,6 @@
 import { PollService } from '../services/PollService';
+import { UserService } from '../services/UserService';
+import { CommentService } from '../services/CommentService';
 import { useState } from 'react';
 import { DuplicateIcon } from '../components/Icons';
 
@@ -107,7 +109,7 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
         setLoading(true);
         setStatus('Seeding users...');
         try {
-            await PollService.seedUsers(MOCK_USERS);
+            await UserService.seedUsers(MOCK_USERS);
             setStatus('✅ 10 Users seeded successfully!');
         } catch (error) {
             console.error(error);
@@ -121,7 +123,7 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
         setLoading(true);
         setStatus(`Seeding ${pollType} polls...`);
         try {
-            const users = await PollService.getUsers();
+            const users = await UserService.getUsers();
             if (!users || users.length === 0) {
                 setStatus('❌ No users found. Seed users first!');
                 return;
@@ -189,7 +191,7 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
             }
 
             setStatus('Seeding comments...');
-            const users = await PollService.getUsers();
+            const users = await UserService.getUsers();
             const commentsToSeed: { pollId: number; userId: number; text: string }[] = [];
             // Take up to 20 polls
             const targetPolls = polls.slice(0, 20);
@@ -204,7 +206,7 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
                     });
                 }
             }
-            await PollService.seedComments(commentsToSeed);
+            await CommentService.seedComments(commentsToSeed);
             setStatus(`✅ Comments seeded on ${targetPolls.length} polls!`);
         } catch (error) {
             console.error(error);
@@ -218,11 +220,11 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
         setLoading(true);
         try {
             setStatus('Step 1/3: Seeding users...');
-            const seededUsers = await PollService.seedUsers(MOCK_USERS);
+            const seededUsers = await UserService.seedUsers(MOCK_USERS);
             // Fallback if seededUsers is not array or valid
             let usersInfo = seededUsers;
             if (!Array.isArray(usersInfo) || usersInfo.length === 0) {
-                usersInfo = await PollService.getUsers();
+                usersInfo = await UserService.getUsers();
             }
             if (!usersInfo || usersInfo.length === 0) throw new Error("No users found");
 
@@ -268,7 +270,7 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
             }
 
             if (commentsToSeed.length > 0) {
-                await PollService.seedComments(commentsToSeed);
+                await CommentService.seedComments(commentsToSeed);
             }
 
             setStatus(`✅ Seed Complete! Created ${MOCK_USERS.length} users, ${allSeededPolls.length} polls, and ${commentsToSeed.length} comments.`);

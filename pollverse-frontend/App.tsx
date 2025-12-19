@@ -184,7 +184,7 @@ function App() {
             case 'comments':
                 return <CommentsPage poll={page.data} onBack={() => setPage({ name: 'feed' })} isLoggedIn={isLoggedIn} requireLogin={requireLogin} currentUser={currentUser} />;
             case 'notifications':
-                return <NotificationsPage onBack={() => setPage({ name: 'feed' })} />;
+                return <NotificationsPage onBack={() => setPage({ name: 'feed' })} currentUser={currentUser} />;
             case 'settings':
                 return <SettingsPage onBack={() => handleNavigation('profile', currentUser)} />;
             case 'addPoll':

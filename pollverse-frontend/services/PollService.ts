@@ -1,7 +1,6 @@
-import { Poll, Comment } from '../types';
+import { Poll } from '../types';
 
 const API_URL = 'http://localhost:3000/polls';
-const USERS_URL = 'http://localhost:3000/users';
 
 const mapPoll = (poll: any): Poll => ({
     ...poll,
@@ -45,11 +44,10 @@ export const PollService = {
     // ============ POLL CRUD ============
     createPoll: async (pollData: Partial<Poll>): Promise<Poll> => {
         try {
-            // Extract creatorId from creator object for backend
             const { creator, ...rest } = pollData as any;
             const backendData = {
                 ...rest,
-                creatorId: creator?.id || 1, // Default to user 1 if no creator
+                creatorId: creator?.id || 1,
             };
 
             const response = await fetch(API_URL, {
@@ -74,6 +72,15 @@ export const PollService = {
             console.error("Failed to get poll:", error);
             return null;
         }
+    },
+
+    seedPolls: async (polls: any[]) => {
+        const response = await fetch(`${API_URL}/seed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(polls)
+        });
+        return response.json();
     },
 
     // ============ VOTING ============
@@ -157,95 +164,4 @@ export const PollService = {
             throw error;
         }
     },
-
-    // ============ COMMENTS ============
-    getComments: async (pollId: number): Promise<Comment[]> => {
-        try {
-            const response = await fetch(`${API_URL}/${pollId}/comments`);
-            if (!response.ok) return [];
-            const data = await response.json();
-            return data.map((c: any) => ({
-                ...c,
-                timestamp: new Date(c.createdAt),
-            }));
-        } catch (error) {
-            console.error("Failed to get comments:", error);
-            return [];
-        }
-    },
-
-    addComment: async (pollId: number, userId: number, text: string) => {
-        try {
-            const response = await fetch(`${API_URL}/${pollId}/comments`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, text })
-            });
-            return response.json();
-        } catch (error) {
-            console.error("Failed to add comment:", error);
-            throw error;
-        }
-    },
-
-    likeComment: async (commentId: number) => {
-        try {
-            const response = await fetch(`${API_URL}/comments/${commentId}/like`, { method: 'POST' });
-            return response.json();
-        } catch (error) {
-            console.error("Failed to like comment:", error);
-            throw error;
-        }
-    },
-
-    // ============ SEEDING ============
-    seedPolls: async (polls: any[]) => {
-        const response = await fetch(`${API_URL}/seed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(polls)
-        });
-        return response.json();
-    },
-
-    seedUsers: async (users: any[]) => {
-        const response = await fetch(`${USERS_URL}/seed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(users)
-        });
-        return response.json();
-    },
-
-    seedComments: async (comments: { pollId: number; userId: number; text: string }[]) => {
-        const response = await fetch(`${API_URL}/seed/comments`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(comments)
-        });
-        return response.json();
-    },
-
-    // ============ USERS ============
-    getUsers: async () => {
-        try {
-            const response = await fetch(USERS_URL);
-            if (!response.ok) return [];
-            return response.json();
-        } catch (error) {
-            console.error("Failed to get users:", error);
-            return [];
-        }
-    },
-
-    getUser: async (id: number) => {
-        try {
-            const response = await fetch(`${USERS_URL}/${id}`);
-            if (!response.ok) return null;
-            return response.json();
-        } catch (error) {
-            console.error("Failed to get user:", error);
-            return null;
-        }
-    }
 };

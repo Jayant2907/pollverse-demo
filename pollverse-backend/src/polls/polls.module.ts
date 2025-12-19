@@ -7,9 +7,10 @@ import { Comment } from './entities/comment.entity';
 import { Vote } from './entities/vote.entity';
 
 import { Interaction } from '../users/entities/interaction.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Poll, Comment, Vote, Interaction])],
+  imports: [TypeOrmModule.forFeature([Poll, Comment, Vote, Interaction]), NotificationsModule],
   controllers: [PollsController],
   providers: [PollsService],
 })

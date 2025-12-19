@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Poll, Comment, User } from '../types';
 import { timeAgo } from '../constants';
 import { ChevronLeftIcon, HeartIcon, PaperAirplaneIcon } from '../components/Icons';
-import { PollService } from '../services/PollService';
+import { CommentService } from '../services/CommentService';
 
 interface CommentsPageProps {
     poll: Poll;
@@ -24,7 +24,7 @@ const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, r
             const pid = Number(poll.id);
             if (isNaN(pid)) return;
 
-            const fetched = await PollService.getComments(pid);
+            const fetched = await CommentService.getComments(pid);
             if (fetched && Array.isArray(fetched)) {
                 setComments(fetched);
             }
@@ -43,7 +43,7 @@ const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, r
 
         setLoading(true);
         try {
-            const rawComment = await PollService.addComment(Number(poll.id), Number(currentUser.id), newComment);
+            const rawComment = await CommentService.addComment(Number(poll.id), Number(currentUser.id), newComment);
 
             // Map raw backend response to Comment type
             const commentToAdd: Comment = {
