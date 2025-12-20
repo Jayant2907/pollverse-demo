@@ -77,12 +77,23 @@ export class UsersService {
   // ============ FOLLOWING ============
   async follow(userId: number, targetUserId: number) {
     const user = await this.usersRepository.findOneBy({ id: userId });
-    if (user) {
+    const targetUser = await this.usersRepository.findOneBy({ id: targetUserId });
+    console.log(user, targetUser);
+    if (user && targetUser) {
+      // Update following for current user
       const following = user.following || [];
       if (!following.includes(String(targetUserId))) {
         following.push(String(targetUserId));
         user.following = following;
         await this.usersRepository.save(user);
+      }
+
+      // Update followers for target user
+      const followers = targetUser.followers || [];
+      if (!followers.includes(String(userId))) {
+        followers.push(String(userId));
+        targetUser.followers = followers;
+        await this.usersRepository.save(targetUser);
       }
     }
     return user;
@@ -90,10 +101,43 @@ export class UsersService {
 
   async unfollow(userId: number, targetUserId: number) {
     const user = await this.usersRepository.findOneBy({ id: userId });
+    const targetUser = await this.usersRepository.findOneBy({ id: targetUserId });
+
     if (user) {
       user.following = (user.following || []).filter(id => id !== String(targetUserId));
       await this.usersRepository.save(user);
     }
+
+    if (targetUser) {
+      targetUser.followers = (targetUser.followers || []).filter(id => id !== String(userId));
+      await this.usersRepository.save(targetUser);
+    }
     return user;
+  }
+
+  async getFollowers(id: number) {
+    const user = await this.usersRepository.findOneBy({ id });
+    if (!user || !user.followers || user.followers.length === 0) return [];
+
+    // Convert string IDs to numbers
+    const followerIds = user.followers.map(fid => parseInt(fid)).filter(fid => !isNaN(fid));
+    if (followerIds.length === 0) return [];
+
+    return this.usersRepository.createQueryBuilder('user')
+      .where('user.id IN (:...ids)', { ids: followerIds })
+      .getMany();
+  }
+
+  async getFollowing(id: number) {
+    const user = await this.usersRepository.findOneBy({ id });
+    if (!user || !user.following || user.following.length === 0) return [];
+
+    // Convert string IDs to numbers
+    const followingIds = user.following.map(fid => parseInt(fid)).filter(fid => !isNaN(fid));
+    if (followingIds.length === 0) return [];
+
+    return this.usersRepository.createQueryBuilder('user')
+      .where('user.id IN (:...ids)', { ids: followingIds })
+      .getMany();
   }
 }

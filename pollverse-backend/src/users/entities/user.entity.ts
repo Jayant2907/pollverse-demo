@@ -22,4 +22,7 @@ export class User {
 
     @Column('simple-array', { nullable: true })
     following: string[];
+
+    @Column('simple-array', { nullable: true })
+    followers: string[];
 }

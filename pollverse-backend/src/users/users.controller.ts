@@ -63,6 +63,16 @@ export class UsersController {
     return this.usersService.unfollow(+id, +targetId);
   }
 
+  @Get(':id/followers')
+  getFollowers(@Param('id') id: string) {
+    return this.usersService.getFollowers(+id);
+  }
+
+  @Get(':id/following')
+  getFollowing(@Param('id') id: string) {
+    return this.usersService.getFollowing(+id);
+  }
+
   // ============ SIMPLE LOGIN (No Auth for now) ============
   @Post('login')
   async login(@Body() body: { email: string; password?: string }) {

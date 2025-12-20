@@ -12,7 +12,8 @@ const mapPoll = (poll: any): Poll => ({
         username: 'User ' + (poll.creatorId || 1),
         avatar: 'https://i.pravatar.cc/150?u=' + (poll.creatorId || 1),
         pollsVotedOn: [],
-        following: []
+        following: [],
+        followers: []
     },
     comments: Array.isArray(poll.comments) ? poll.comments.map((c: any) => ({
         ...c,
@@ -23,12 +24,13 @@ const mapPoll = (poll: any): Poll => ({
 
 export const PollService = {
     // ============ FEED ============
-    getFeed: async (params?: { category?: string; search?: string; tag?: string }): Promise<Poll[]> => {
+    getFeed: async (params?: { category?: string; search?: string; tag?: string; userId?: number }): Promise<Poll[]> => {
         try {
             const query = new URLSearchParams();
             if (params?.category) query.append('category', params.category);
             if (params?.search) query.append('search', params.search);
             if (params?.tag) query.append('tag', params.tag);
+            if (params?.userId) query.append('userId', String(params.userId));
 
             const response = await fetch(`${API_URL}?${query.toString()}`);
             if (!response.ok) throw new Error('Network response was not ok');

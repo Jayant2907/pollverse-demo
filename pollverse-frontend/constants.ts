@@ -11,13 +11,13 @@ export const MOCK_USER: User = {
   points: 1250,
   pollsCreated: 15,
   pollsVotedOn: [],
-  following: []
+  following: [], followers: []
 };
 
 export const INITIAL_MOCK_POLLS: Poll[] = [
   {
     id: 2001,
-    creator: { id: 999, username: 'SurveyAdmin', avatar: 'https://picsum.photos/120/120', points: 5000, pollsCreated: 42, pollsVotedOn: [], following: [] },
+    creator: { id: 999, username: 'SurveyAdmin', avatar: 'https://picsum.photos/120/120', points: 5000, pollsCreated: 42, pollsVotedOn: [], following: [], followers: [] },
     question: 'Help us improve by answering a few quick questions!',
     description: 'We value your feedback. This survey helps us understand your needs better.',
     pollType: 'survey',
@@ -70,7 +70,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 1020,
-    creator: { id: 112, username: 'MarketingTeam', avatar: 'https://picsum.photos/112/112', points: 1200, pollsCreated: 8, pollsVotedOn: [], following: [] },
+    creator: { id: 112, username: 'MarketingTeam', avatar: 'https://picsum.photos/112/112', points: 1200, pollsCreated: 8, pollsVotedOn: [], following: [], followers: [] },
     question: 'How did you hear about our new app?',
     description: 'We are trying to optimize our marketing channels.',
     pollType: 'survey',
@@ -94,7 +94,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 1022,
-    creator: { id: 114, username: 'CommunityMgr', avatar: 'https://picsum.photos/114/114', points: 1500, pollsCreated: 12, pollsVotedOn: [], following: [] },
+    creator: { id: 114, username: 'CommunityMgr', avatar: 'https://picsum.photos/114/114', points: 1500, pollsCreated: 12, pollsVotedOn: [], following: [], followers: [] },
     question: 'Which social platforms do you use daily?',
     description: 'We are expanding our community reach. Help us decide where to focus!',
     pollType: 'survey',
@@ -124,15 +124,15 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 1,
-    creator: { id: 101, username: 'SportsFanatic', avatar: 'https://picsum.photos/101/101', points: 500, pollsCreated: 5, pollsVotedOn: [], following: [] },
+    creator: { id: 101, username: 'SportsFanatic', avatar: 'https://picsum.photos/101/101', points: 500, pollsCreated: 5, pollsVotedOn: [], following: [], followers: [] },
     question: 'Who will win the next Cricket World Cup?',
     description: 'Considering the current team form, pitch conditions, and historical performance, which team has the best shot at lifting the trophy?',
     pollType: 'multiple_choice',
     options: [{ id: 'a', text: 'India' }, { id: 'b', text: 'Australia' }, { id: 'c', text: 'England' }, { id: 'd', text: 'South Africa' }],
     votes: { a: 1250, b: 880, c: 620, d: 340 },
     comments: [
-      { id: 1, user: { id: 102, username: 'CricketFan', avatar: 'https://picsum.photos/102/102', points: 100, pollsCreated: 0, pollsVotedOn: [], following: [] }, text: 'India has the home advantage!', likes: 15, timestamp: new Date(now.getTime() - 2 * 60 * 60000) },
-      { id: 2, user: { id: 103, username: 'AussieFan', avatar: 'https://picsum.photos/103/103', points: 200, pollsCreated: 0, pollsVotedOn: [], following: [] }, text: 'Never count out Australia.', likes: 4, timestamp: new Date(now.getTime() - 10 * 60000) }
+      { id: 1, user: { id: 102, username: 'CricketFan', avatar: 'https://picsum.photos/102/102', points: 100, pollsCreated: 0, pollsVotedOn: [], following: [], followers: [] }, text: 'India has the home advantage!', likes: 15, timestamp: new Date(now.getTime() - 2 * 60 * 60000) },
+      { id: 2, user: { id: 103, username: 'AussieFan', avatar: 'https://picsum.photos/103/103', points: 200, pollsCreated: 0, pollsVotedOn: [], following: [], followers: [] }, text: 'Never count out Australia.', likes: 4, timestamp: new Date(now.getTime() - 10 * 60000) }
     ],
     likes: 1200,
     dislikes: 50,
@@ -142,7 +142,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 1021,
-    creator: { id: 113, username: 'ProductManager', avatar: 'https://picsum.photos/113/113', points: 2000, pollsCreated: 25, pollsVotedOn: [], following: [] },
+    creator: { id: 113, username: 'ProductManager', avatar: 'https://picsum.photos/113/113', points: 2000, pollsCreated: 25, pollsVotedOn: [], following: [], followers: [] },
     question: 'What features should we build next?',
     pollType: 'survey', // Legacy survey treated as single page if structured, but here let's keep it simple for now or assume it will use the surveyQuestions flow if we update it.
     // To ensure compatibility, we can leave this as 'survey' but without questions, it might break.
@@ -167,7 +167,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 99,
-    creator: { id: 109, username: 'HistoryKeeper', avatar: 'https://picsum.photos/109/109', points: 800, pollsCreated: 10, pollsVotedOn: [], following: [] },
+    creator: { id: 109, username: 'HistoryKeeper', avatar: 'https://picsum.photos/109/109', points: 800, pollsCreated: 10, pollsVotedOn: [], following: [], followers: [] },
     question: 'Previous Election Prediction (Expired)',
     description: 'This poll has ended because the expiration time passed.',
     pollType: 'binary',
@@ -183,7 +183,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 100,
-    creator: { id: 110, username: 'BetaTester', avatar: 'https://picsum.photos/110/110', points: 100, pollsCreated: 1, pollsVotedOn: [], following: [] },
+    creator: { id: 110, username: 'BetaTester', avatar: 'https://picsum.photos/110/110', points: 100, pollsCreated: 1, pollsVotedOn: [], following: [], followers: [] },
     question: 'First 50 Voters Only!',
     description: 'This poll closed automatically after reaching 50 votes.',
     pollType: 'multiple_choice',
@@ -199,7 +199,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 4,
-    creator: { id: 105, username: 'Foodie', avatar: 'https://picsum.photos/104/104', points: 300, pollsCreated: 12, pollsVotedOn: [], following: [] },
+    creator: { id: 105, username: 'Foodie', avatar: 'https://picsum.photos/104/104', points: 300, pollsCreated: 12, pollsVotedOn: [], following: [], followers: [] },
     question: 'Rank these pizza toppings from best to worst.',
     pollType: 'ranking',
     options: [{ id: 'a', text: 'Pepperoni' }, { id: 'b', text: 'Mushrooms' }, { id: 'c', text: 'Onions' }, { id: 'd', text: 'Bacon' }],
@@ -213,12 +213,12 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 3,
-    creator: { id: 102, username: 'MovieLover', avatar: 'https://picsum.photos/105/105', points: 400, pollsCreated: 2, pollsVotedOn: [], following: [] },
+    creator: { id: 102, username: 'MovieLover', avatar: 'https://picsum.photos/105/105', points: 400, pollsCreated: 2, pollsVotedOn: [], following: [], followers: [] },
     question: 'Which blockbuster will gross more worldwide?',
     pollType: 'image',
     options: [{ id: 'a', text: 'Cyber Runner 3049' }, { id: 'b', text: 'Chronicles of Atheria' }],
     votes: { a: 980, b: 1120 },
-    comments: [{ id: 3, user: { id: 104, username: 'FilmBuff', avatar: 'https://picsum.photos/106/106', points: 50, pollsCreated: 0, pollsVotedOn: [], following: [] }, text: 'The sci-fi one looks amazing!', likes: 8, timestamp: new Date(now.getTime() - 15 * 60000) }],
+    comments: [{ id: 3, user: { id: 104, username: 'FilmBuff', avatar: 'https://picsum.photos/106/106', points: 50, pollsCreated: 0, pollsVotedOn: [], following: [], followers: [] }, text: 'The sci-fi one looks amazing!', likes: 8, timestamp: new Date(now.getTime() - 15 * 60000) }],
     likes: 540,
     dislikes: 12,
     category: 'Movies',
@@ -227,7 +227,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 5,
-    creator: { id: 106, username: 'TravelBug', avatar: 'https://picsum.photos/107/107', points: 600, pollsCreated: 22, pollsVotedOn: [], following: [] },
+    creator: { id: 106, username: 'TravelBug', avatar: 'https://picsum.photos/107/107', points: 600, pollsCreated: 22, pollsVotedOn: [], following: [], followers: [] },
     question: 'How likely are you to travel internationally in the next 6 months?',
     pollType: 'slider',
     options: [{ id: 'a', text: 'Not Likely' }, { id: 'b', text: 'Very Likely' }],
@@ -241,7 +241,7 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
   },
   {
     id: 2,
-    creator: { id: 103, username: 'TechGuru', avatar: 'https://picsum.photos/108/108', points: 900, pollsCreated: 8, pollsVotedOn: [], following: [] },
+    creator: { id: 103, username: 'TechGuru', avatar: 'https://picsum.photos/108/108', points: 900, pollsCreated: 8, pollsVotedOn: [], following: [], followers: [] },
     question: 'Which is the better mobile OS for privacy?',
     description: 'This is a long-standing debate. One side prioritizes a walled-garden approach for security, while the other champions open-source flexibility. Which ecosystem do you trust more with your personal data and why?',
     pollType: 'binary',

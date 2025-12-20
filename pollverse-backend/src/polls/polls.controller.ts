@@ -18,8 +18,12 @@ export class PollsController {
   }
 
   @Get()
-  findAll(@Query() query: { category?: string; search?: string; tag?: string }) {
-    return this.pollsService.findAll(query);
+  findAll(@Query() query: { category?: string; search?: string; tag?: string; userId?: string }) {
+    const backendQuery = {
+      ...query,
+      userId: query.userId ? parseInt(query.userId) : undefined
+    };
+    return this.pollsService.findAll(backendQuery);
   }
 
   @Get(':id')

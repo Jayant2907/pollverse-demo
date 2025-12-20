@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { PollService } from './services/PollService';
+import { UserService } from './services/UserService';
 import { ThemeProvider } from './context/ThemeContext';
 import { PageState, Poll, User } from './types';
 import { MOCK_USER, CATEGORIES } from './constants';
@@ -45,6 +46,18 @@ function App() {
             setPolls(data);
             setIsLoading(false);
         });
+
+        // Auto-login from localStorage
+        const savedUser = localStorage.getItem('pollverse_user');
+        if (savedUser) {
+            try {
+                const user = JSON.parse(savedUser);
+                setCurrentUser(user);
+                setIsLoggedIn(true);
+            } catch (e) {
+                console.error("Failed to parse saved user", e);
+            }
+        }
     }, []);
 
     const showToast = (message: string) => {
@@ -62,12 +75,15 @@ function App() {
     const handleLoginSuccess = (user?: any) => {
         setIsLoggedIn(true);
         if (user) {
-            setCurrentUser(prev => ({
-                ...prev,
+            const updatedUser = {
+                ...currentUser,
                 ...user,
-                pollsVotedOn: user.pollsVotedOn || prev.pollsVotedOn || [],
-                following: user.following || prev.following || [],
-            }));
+                pollsVotedOn: user.pollsVotedOn || currentUser.pollsVotedOn || [],
+                following: user.following || currentUser.following || [],
+                followers: user.followers || currentUser.followers || [],
+            };
+            setCurrentUser(updatedUser);
+            localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
         }
         if (loginRedirectAction) {
             loginRedirectAction();
@@ -79,6 +95,8 @@ function App() {
 
     const handleLogout = () => {
         setIsLoggedIn(false);
+        setCurrentUser(MOCK_USER);
+        localStorage.removeItem('pollverse_user');
         setPage({ name: 'feed' });
     };
 
@@ -91,7 +109,19 @@ function App() {
 
     const handleNavigation = (name: string, data?: any) => {
         const protectedPages = ['profile', 'addPoll', 'notifications', 'settings', 'comments', 'results', 'editProfile', 'survey'];
-        const action = () => setPage({ name, data });
+        const action = async () => {
+            if (name === 'profile' && data && data.id) {
+                // Fetch fresh user data to get accurate followers/following counts
+                try {
+                    const freshUser = await UserService.getUser(Number(data.id));
+                    setPage({ name, data: freshUser || data });
+                } catch (e) {
+                    setPage({ name, data });
+                }
+            } else {
+                setPage({ name, data });
+            }
+        };
 
         if (protectedPages.includes(name) && !isLoggedIn && name !== 'profile') {
             requireLogin(action);
@@ -104,6 +134,7 @@ function App() {
 
     const handleUpdateUser = (updatedUser: User) => {
         setCurrentUser(updatedUser);
+        localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
     };
 
     const handleVote = (pollId: number | string) => {
@@ -124,13 +155,48 @@ function App() {
         }
     };
 
-    const handleToggleFollow = (userId: string | number) => {
-        setCurrentUser(prev => {
-            const following = prev.following.includes(userId)
-                ? prev.following.filter(id => id !== userId)
-                : [...prev.following, userId];
-            return { ...prev, following };
-        });
+    const handleToggleFollow = async (userId: string | number) => {
+        if (!isLoggedIn) {
+            requireLogin(() => handleToggleFollow(userId));
+            return;
+        }
+
+        const targetId = Number(userId);
+        const isFollowing = currentUser.following.includes(String(targetId)) || currentUser.following.includes(targetId);
+
+        try {
+            if (isFollowing) {
+                await UserService.unfollow(Number(currentUser.id), targetId);
+            } else {
+                await UserService.follow(Number(currentUser.id), targetId);
+            }
+
+            setCurrentUser(prev => {
+                const following = prev.following.includes(String(targetId)) || prev.following.includes(targetId)
+                    ? prev.following.filter(id => String(id) !== String(targetId))
+                    : [...prev.following, String(targetId)];
+                const updated = { ...prev, following };
+                localStorage.setItem('pollverse_user', JSON.stringify(updated));
+                return updated;
+            });
+
+            // Update profile page data if we are viewing the target user's profile
+            if (page.name === 'profile' && page.data && String(page.data.id) === String(targetId)) {
+                setPage(prev => ({
+                    ...prev,
+                    data: {
+                        ...prev.data,
+                        followers: isFollowing
+                            ? (prev.data.followers || []).filter((id: any) => String(id) !== String(currentUser.id))
+                            : [...(prev.data.followers || []), String(currentUser.id)]
+                    }
+                }));
+            }
+            showToast(isFollowing ? 'Unfollowed successfully' : 'Followed successfully');
+        } catch (e) {
+            console.error("Failed to toggle follow:", e);
+            showToast('Failed to update follow status');
+        }
     };
 
     useEffect(() => {
@@ -141,24 +207,10 @@ function App() {
                 const filters: any = {};
                 if (activeCategory !== 'For You') filters.category = activeCategory;
                 if (searchQuery.trim() !== '') filters.search = searchQuery;
-                // Note: Complex internal following logic is hard to do pure backend without auth token. 
-                // For now, if "Following", we might filter locally or ignore. 
-                // Let's assume standard feed for now.
+                if (isLoggedIn) filters.userId = currentUser.id;
 
                 const data = await PollService.getFeed(filters);
-
-                // Client side sort for Trending if backend didn't handle it perfectly or for visual snap
-                if (activeCategory === 'Trending') {
-                    // data.sort(...) 
-                }
-
-                if (activeCategory === 'Following') {
-                    // Client side filter for following since we don't have full auth backend yet
-                    const followingPolls = data.filter(p => p.creator?.id && currentUser.following.includes(p.creator.id));
-                    setPolls(followingPolls);
-                } else {
-                    setPolls(data);
-                }
+                setPolls(data);
             } catch (e) {
                 console.error(e);
             }

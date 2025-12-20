@@ -36,5 +36,29 @@ export const UserService = {
             console.error("Failed to seed users:", error);
             throw error;
         }
+    },
+    follow: async (userId: number, targetUserId: number) => {
+        const response = await fetch(`${USERS_URL}/${userId}/follow/${targetUserId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return response.json();
+    },
+    unfollow: async (userId: number, targetUserId: number) => {
+        const response = await fetch(`${USERS_URL}/${userId}/unfollow/${targetUserId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return response.json();
+    },
+    getFollowers: async (userId: number): Promise<User[]> => {
+        const response = await fetch(`${USERS_URL}/${userId}/followers`);
+        if (!response.ok) return [];
+        return response.json();
+    },
+    getFollowing: async (userId: number): Promise<User[]> => {
+        const response = await fetch(`${USERS_URL}/${userId}/following`);
+        if (!response.ok) return [];
+        return response.json();
     }
 };

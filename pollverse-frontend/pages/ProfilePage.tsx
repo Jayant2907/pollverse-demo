@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Poll } from '../types';
-import { ChevronLeftIcon, CogIcon, LogoutIcon } from '../components/Icons';
+import { ChevronLeftIcon, CogIcon, LogoutIcon, XIcon } from '../components/Icons';
+import { UserService } from '../services/UserService';
 
 interface ProfilePageProps {
     user: User;
@@ -15,10 +16,31 @@ interface ProfilePageProps {
 const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onLogout, currentUser, onToggleFollow, allPolls }) => {
     const [activeTab, setActiveTab] = useState<'created' | 'voted'>('created');
     const isMainUser = user.id === currentUser.id;
-    const isFollowing = currentUser.following.includes(user.id);
+    const isFollowing = currentUser.following.some(id => String(id) === String(user.id));
 
     const userPolls = allPolls.filter(p => p.creator?.id === user.id);
-    const votedPolls = allPolls.filter(p => currentUser.pollsVotedOn.includes(p.id));
+    const votedPolls = allPolls.filter(p => currentUser.pollsVotedOn.some(id => String(id) === String(p.id)));
+
+    const [modalMode, setModalMode] = useState<'followers' | 'following' | null>(null);
+    const [modalUsers, setModalUsers] = useState<User[]>([]);
+    const [isLoadingModal, setIsLoadingModal] = useState(false);
+
+    useEffect(() => {
+        if (modalMode) {
+            setIsLoadingModal(true);
+            const fetchUsers = modalMode === 'followers'
+                ? UserService.getFollowers(Number(user.id))
+                : UserService.getFollowing(Number(user.id));
+
+            fetchUsers.then(users => {
+                setModalUsers(users);
+                setIsLoadingModal(false);
+            }).catch(e => {
+                console.error(`Failed to fetch ${modalMode}`, e);
+                setIsLoadingModal(false);
+            });
+        }
+    }, [modalMode, user.id]);
 
     return (
         <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in">
@@ -34,14 +56,39 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                     <img src={user.avatar} alt={user.username} className="w-24 h-24 rounded-full border-4 border-white dark:border-black mb-4 shadow-lg object-cover" />
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{user.username}</h2>
                     {!isMainUser && (
-                        <button onClick={() => onToggleFollow(user.id)} className={`mt-4 px-6 py-2 rounded-full font-semibold transition-colors ${isFollowing ? 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'bg-blue-600 text-white'}`}>
-                            {isFollowing ? 'Following' : 'Follow'}
+                        <button
+                            onClick={() => onToggleFollow(user.id)}
+                            className={`mt-4 px-8 py-2 rounded-full font-bold transition-all transform active:scale-95 ${isFollowing
+                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-red-50 hover:text-red-500 hover:border-red-200'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25'
+                                }`}
+                        >
+                            {isFollowing ? 'Unfollow' : 'Follow'}
                         </button>
                     )}
-                    <div className="flex space-x-6 mt-6 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 py-3 px-6 rounded-xl w-full justify-center shadow-sm">
-                        <div className="text-center"><p className="text-xl font-bold text-blue-600 dark:text-blue-400">{user.points?.toLocaleString() || 0}</p><p className="text-xs text-gray-500 dark:text-gray-400">Points</p></div>
-                        <div className="text-center"><p className="text-xl font-bold text-gray-800 dark:text-gray-200">{userPolls.length}</p><p className="text-xs text-gray-500 dark:text-gray-400">Created</p></div>
-                        <div className="text-center"><p className="text-xl font-bold text-gray-800 dark:text-gray-200">{isMainUser ? user.pollsVotedOn.length : user.pollsVotedOn.length}</p><p className="text-xs text-gray-500 dark:text-gray-400">Voted</p></div>
+                    <div className="grid grid-cols-4 gap-2 mt-6 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 py-3 px-2 rounded-xl w-full shadow-sm">
+                        <div className="text-center">
+                            <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{user.points?.toLocaleString() || 0}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Points</p>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{userPolls.length}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Polls</p>
+                        </div>
+                        <div
+                            onClick={() => setModalMode('followers')}
+                            className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors p-1"
+                        >
+                            <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{user.followers?.length || 0}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Followers</p>
+                        </div>
+                        <div
+                            onClick={() => setModalMode('following')}
+                            className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors p-1"
+                        >
+                            <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{user.following?.length || 0}</p>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Following</p>
+                        </div>
                     </div>
                 </div>
                 {isMainUser && <button onClick={() => onNavigate('editProfile')} className="mx-4 mb-2 p-3 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold rounded-lg">Edit Profile</button>}
@@ -79,6 +126,51 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                     </div>
                 )}
             </div>
+
+            {/* Followers/Following Modal */}
+            {modalMode && (
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-fade-in p-4">
+                    <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[80%] overflow-hidden animate-slide-up">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+                            <h3 className="text-xl font-bold capitalize">{modalMode}</h3>
+                            <button onClick={() => setModalMode(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"><XIcon /></button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto p-2">
+                            {isLoadingModal ? (
+                                <div className="flex justify-center p-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                </div>
+                            ) : modalUsers.length > 0 ? (
+                                <div className="space-y-1">
+                                    {modalUsers.map(u => (
+                                        <div
+                                            key={u.id}
+                                            className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                onNavigate('profile', u);
+                                                setModalMode(null);
+                                            }}
+                                        >
+                                            <div className="flex items-center space-x-3">
+                                                <img src={u.avatar} alt={u.username} className="w-12 h-12 rounded-full object-cover border border-gray-100 dark:border-gray-800" />
+                                                <div>
+                                                    <p className="font-bold text-gray-900 dark:text-white">{u.username}</p>
+                                                    <p className="text-xs text-gray-500">{u.points} Points</p>
+                                                </div>
+                                            </div>
+                                            <span className="rotate-180 text-gray-400"><ChevronLeftIcon /></span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center p-12">
+                                    <p className="text-gray-500">No {modalMode} yet.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

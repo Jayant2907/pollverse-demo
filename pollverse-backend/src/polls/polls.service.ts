@@ -46,12 +46,24 @@ export class PollsService {
     return this.pollsRepository.save(polls);
   }
 
-  async findAll(query: { category?: string; search?: string; tag?: string }) {
+  async findAll(query: { category?: string; search?: string; tag?: string; userId?: number }) {
     const qb = this.pollsRepository.createQueryBuilder('poll');
     qb.leftJoinAndSelect('poll.creator', 'creator');
     qb.loadRelationCountAndMap('poll.commentsCount', 'poll.comments');
 
-    if (query.category && query.category !== 'For You' && query.category !== 'Following' && query.category !== 'Trending') {
+    if (query.category === 'Following' && query.userId) {
+      // Get the user to find who they are following
+      // Note: In a real app, this might be a separate join or a more optimized query
+      // For now, we'll fetch the user's following list and filter by those IDs
+      const user = await this.pollsRepository.manager.getRepository('User').findOneBy({ id: query.userId }) as any;
+      if (user && user.following && user.following.length > 0) {
+        qb.andWhere('poll.creatorId IN (:...followingIds)', { followingIds: user.following.map((id: string) => parseInt(id)) });
+      } else {
+        // If not following anyone, return empty or handle accordingly. 
+        // Here we return empty by adding a condition that's never true
+        qb.andWhere('1 = 0');
+      }
+    } else if (query.category && query.category !== 'For You' && query.category !== 'Following' && query.category !== 'Trending') {
       qb.andWhere('poll.category = :category', { category: query.category });
     }
 
