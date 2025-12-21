@@ -1,4 +1,4 @@
-import { Poll } from '../types';
+import { Poll, User } from '../types';
 
 const API_URL = 'http://localhost:3000/polls';
 
@@ -164,6 +164,16 @@ export const PollService = {
         } catch (error) {
             console.error("Failed to unlike poll:", error);
             throw error;
+        }
+    },
+    getInteractors: async (pollId: number, type: 'like' | 'dislike'): Promise<User[]> => {
+        try {
+            const response = await fetch(`${API_URL}/${pollId}/interactors?type=${type}`);
+            if (!response.ok) return [];
+            return response.json();
+        } catch (error) {
+            console.error(`Failed to get ${type}rs:`, error);
+            return [];
         }
     },
 };

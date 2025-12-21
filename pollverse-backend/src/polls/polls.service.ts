@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreatePollDto } from './dto/create-poll.dto';
 import { UpdatePollDto } from './dto/update-poll.dto';
 import { Poll } from './entities/poll.entity';
@@ -81,15 +81,61 @@ export class PollsService {
       qb.orderBy('poll.createdAt', 'DESC');
     }
 
-    return qb.getMany();
+    const polls = await qb.getMany();
+
+    if (query.userId) {
+      const pollIds = polls.map(p => p.id);
+      if (pollIds.length > 0) {
+        const interactions = await this.interactionRepository.find({
+          where: {
+            userId: query.userId,
+            pollId: In(pollIds)
+          }
+        });
+        const interactionMap = new Map(interactions.map(i => [i.pollId, i.type]));
+        polls.forEach(p => {
+          (p as any).userInteraction = interactionMap.get(p.id) || null;
+        });
+
+        // Also check if user voted on these polls
+        const votes = await this.voteRepository.find({
+          where: {
+            userId: query.userId,
+            pollId: In(pollIds)
+          }
+        });
+        const voteMap = new Map(votes.map(v => [v.pollId, v.optionId]));
+        polls.forEach(p => {
+          (p as any).userVote = voteMap.get(p.id) || null;
+        });
+      }
+    }
+
+    return polls;
   }
 
-  findOne(id: number) {
-    return this.pollsRepository.findOne({
+  async findOne(id: number, userId?: number) {
+    const poll = await this.pollsRepository.findOne({
       where: { id },
-      relations: ['creator', 'comments', 'comments.user']
+      relations: ['creator'],
     });
+
+    if (poll && userId) {
+      const interaction = await this.interactionRepository.findOneBy({ pollId: id, userId });
+      (poll as any).userInteraction = interaction ? interaction.type : null;
+
+      const vote = await this.voteRepository.findOneBy({ pollId: id, userId });
+      (poll as any).userVote = vote ? vote.optionId : null;
+    }
+
+    if (poll) {
+      poll.commentsCount = await this.commentRepository.countBy({ pollId: id });
+    }
+
+    return poll;
   }
+
+
 
   update(id: number, updatePollDto: UpdatePollDto) {
     return this.pollsRepository.update(id, updatePollDto);
@@ -282,5 +328,13 @@ export class PollsService {
   async seedComments(commentsData: { pollId: number; userId: number; text: string }[]) {
     const comments = commentsData.map(dto => this.commentRepository.create(dto));
     return this.commentRepository.save(comments);
+  }
+
+  async getInteractors(pollId: number, type: 'like' | 'dislike') {
+    const interactions = await this.interactionRepository.find({
+      where: { pollId, type },
+      relations: ['user'],
+    });
+    return interactions.map(i => i.user);
   }
 }

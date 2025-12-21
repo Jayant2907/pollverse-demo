@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Poll, User } from '../../types';
 import { getTotalVotes, timeAgo } from '../../constants';
-import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon, DuplicateIcon } from '../Icons';
+import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon, DuplicateIcon, XIcon, ChevronLeftIcon } from '../Icons';
 import SvgPlaceholder from '../ui/SvgPlaceholder';
 import SwipePoll from './SwipePoll';
 import confetti from 'canvas-confetti';
@@ -18,11 +18,35 @@ interface PollCardProps {
 }
 
 const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete, currentUser }) => {
-    const [userVote, setUserVote] = useState<string | number | null>(null);
-    const [interaction, setInteraction] = useState<'like' | 'dislike' | null>(null);
+    const [userVote, setUserVote] = useState<string | number | null>(poll.userVote || null);
+    const [interaction, setInteraction] = useState<'like' | 'dislike' | null>(poll.userInteraction || null);
     const [likesCount, setLikesCount] = useState(poll.likes || 0);
     const [dislikesCount, setDislikesCount] = useState(poll.dislikes || 0);
     const [showFullDescription, setShowFullDescription] = useState(false);
+    const [interactorsModal, setInteractorsModal] = useState<{ type: 'like' | 'dislike', users: User[] } | null>(null);
+    const [isLoadingInteractors, setIsLoadingInteractors] = useState(false);
+
+    useEffect(() => {
+        setUserVote(poll.userVote || null);
+        setInteraction(poll.userInteraction || null);
+        setLikesCount(poll.likes || 0);
+        setDislikesCount(poll.dislikes || 0);
+    }, [poll.id, poll.userVote, poll.userInteraction, poll.likes, poll.dislikes]);
+
+    const handleShowInteractors = async (e: React.MouseEvent, type: 'like' | 'dislike') => {
+        e.stopPropagation();
+        setIsLoadingInteractors(true);
+        setInteractorsModal({ type, users: [] });
+        try {
+            const PollService = (await import('../../services/PollService')).PollService;
+            const users = await PollService.getInteractors(Number(poll.id), type);
+            setInteractorsModal({ type, users });
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsLoadingInteractors(false);
+        }
+    };
 
     // ... (rest of state)
 
@@ -363,8 +387,14 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
 
                 <footer className="flex-shrink-0 flex justify-between items-center text-gray-600 dark:text-gray-400 p-2 border-t border-gray-100 dark:border-gray-700/50">
                     <div className="flex items-center space-x-4">
-                        <button onClick={() => handleInteract('like')} className={`flex items-center space-x-1 transition-colors ${interaction === 'like' ? 'text-blue-600 dark:text-blue-400' : 'hover:text-blue-600 dark:hover:text-blue-400'}`}><ThumbUpIcon active={interaction === 'like'} /> <span className="text-sm">{likesCount}</span></button>
-                        <button onClick={() => handleInteract('dislike')} className={`flex items-center space-x-1 transition-colors ${interaction === 'dislike' ? 'text-red-600 dark:text-red-500' : 'hover:text-red-600 dark:hover:text-red-500'}`}><ThumbDownIcon active={interaction === 'dislike'} /> <span className="text-sm">{dislikesCount}</span></button>
+                        <div className="flex items-center space-x-1 group/like">
+                            <button onClick={() => handleInteract('like')} className={`flex items-center space-x-1 transition-colors ${interaction === 'like' ? 'text-blue-600 dark:text-blue-400' : 'hover:text-blue-600 dark:hover:text-blue-400'}`}><ThumbUpIcon active={interaction === 'like'} /></button>
+                            <span onClick={(e) => handleShowInteractors(e, 'like')} className="text-sm cursor-pointer hover:underline">{likesCount}</span>
+                        </div>
+                        <div className="flex items-center space-x-1 group/dislike">
+                            <button onClick={() => handleInteract('dislike')} className={`flex items-center space-x-1 transition-colors ${interaction === 'dislike' ? 'text-red-600 dark:text-red-500' : 'hover:text-red-600 dark:hover:text-red-500'}`}><ThumbDownIcon active={interaction === 'dislike'} /></button>
+                            <span onClick={(e) => handleShowInteractors(e, 'dislike')} className="text-sm cursor-pointer hover:underline">{dislikesCount}</span>
+                        </div>
                     </div>
                     <div className="flex items-center space-x-4">
                         <button onClick={handleShare} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ShareIcon /></button>
@@ -384,6 +414,50 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                         <h3 className="font-bold mb-2 text-gray-900 dark:text-gray-100">{poll.question}</h3>
                         <p className="text-gray-600 dark:text-gray-300 text-sm">{poll.description}</p>
                         <button onClick={() => setShowFullDescription(false)} className="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg font-semibold">Close</button>
+                    </div>
+                </div>
+            )}
+            {/* Interactors Modal */}
+            {interactorsModal && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-fade-in p-2 rounded-2xl" onClick={() => setInteractorsModal(null)}>
+                    <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[70%] overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800">
+                            <h3 className="text-lg font-bold capitalize">Users who {interactorsModal.type}d</h3>
+                            <button onClick={() => setInteractorsModal(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"><XIcon /></button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto p-2">
+                            {isLoadingInteractors ? (
+                                <div className="flex justify-center p-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                </div>
+                            ) : interactorsModal.users.length > 0 ? (
+                                <div className="space-y-1">
+                                    {interactorsModal.users.map(u => (
+                                        <div
+                                            key={u.id}
+                                            className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                onNavigate('profile', u);
+                                                setInteractorsModal(null);
+                                            }}
+                                        >
+                                            <div className="flex items-center space-x-3">
+                                                <img src={u.avatar} alt={u.username} className="w-8 h-8 rounded-full border border-gray-100 dark:border-gray-800" />
+                                                <div>
+                                                    <p className="font-bold text-sm text-gray-900 dark:text-white">{u.username}</p>
+                                                    <p className="text-[10px] text-gray-500">{u.points} Points</p>
+                                                </div>
+                                            </div>
+                                            <span className="rotate-180 text-gray-400 scale-75"><ChevronLeftIcon /></span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center p-8">
+                                    <p className="text-gray-500 text-sm">No {interactorsModal.type}s yet.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

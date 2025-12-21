@@ -57,6 +57,9 @@ export interface Poll {
   // Expiration Logic
   expiresAt?: Date;
   maxVotes?: number;
+  // Social state for current user
+  userInteraction?: 'like' | 'dislike' | null;
+  userVote?: string | number | null;
 }
 
 export interface PageState {

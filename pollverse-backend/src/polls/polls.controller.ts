@@ -78,6 +78,11 @@ export class PollsController {
     return this.pollsService.unlikePoll(+id, +userId);
   }
 
+  @Get(':id/interactors')
+  getInteractors(@Param('id') id: string, @Query('type') type: 'like' | 'dislike') {
+    return this.pollsService.getInteractors(+id, type);
+  }
+
   // ============ COMMENTS ============
   @Get(':id/comments')
   getComments(@Param('id') id: string) {
