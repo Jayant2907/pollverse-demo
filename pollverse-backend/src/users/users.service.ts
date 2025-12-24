@@ -81,7 +81,8 @@ export class UsersService {
   async follow(userId: number, targetUserId: number) {
     const user = await this.usersRepository.findOneBy({ id: userId });
     const targetUser = await this.usersRepository.findOneBy({ id: targetUserId });
-    console.log(user, targetUser);
+    let pointsEarned = 0;
+
     if (user && targetUser) {
       // Update following for current user
       const following = user.following || [];
@@ -91,7 +92,10 @@ export class UsersService {
         await this.usersRepository.save(user);
 
         // Award points for following
-        await this.pointsService.awardPoints(userId, 10, 'follow', { targetUserId });
+        const result = await this.pointsService.awardPoints(userId, 10, 'FOLLOW', targetUserId, { targetUserId });
+        if (result.success) {
+          pointsEarned = result.pointsEarned || 0;
+        }
       }
 
       // Update followers for target user
@@ -102,7 +106,7 @@ export class UsersService {
         await this.usersRepository.save(targetUser);
       }
     }
-    return user;
+    return { ...user, pointsEarned };
   }
 
   async unfollow(userId: number, targetUserId: number) {
