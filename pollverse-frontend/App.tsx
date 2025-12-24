@@ -22,6 +22,7 @@ import ResultsPage from './pages/ResultsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import SettingsPage from './pages/SettingsPage';
 import SurveyPage from './pages/SurveyPage';
+import UserPollsPage from './pages/UserPollsPage';
 import AdminPage from './pages/AdminPage';
 
 function App() {
@@ -247,6 +248,19 @@ function App() {
                 return <EditProfilePage onBack={() => handleNavigation('profile', currentUser)} currentUser={currentUser} onUpdateUser={handleUpdateUser} />;
             case 'survey':
                 return <SurveyPage poll={page.data} onBack={() => setPage({ name: 'feed' })} onComplete={handleVote} />;
+            case 'userPolls':
+                return (
+                    <UserPollsPage
+                        user={page.data}
+                        currentUser={currentUser}
+                        isLoggedIn={isLoggedIn}
+                        onBack={() => handleNavigation('profile', page.data)}
+                        onNavigate={handleNavigation}
+                        requireLogin={requireLogin}
+                        showToast={showToast}
+                        onVote={handleVote}
+                    />
+                );
             case 'admin':
                 return <AdminPage onBack={() => setPage({ name: 'feed' })} />;
             default:

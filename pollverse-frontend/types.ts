@@ -7,6 +7,7 @@ export interface User {
   pollsVotedOn: (number | string)[]; // Array of Poll IDs
   following: (number | string)[]; // Array of User IDs
   followers: (number | string)[]; // Array of User IDs
+  pollsCount: number;
 }
 
 export interface Comment {

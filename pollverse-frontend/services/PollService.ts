@@ -24,13 +24,14 @@ const mapPoll = (poll: any): Poll => ({
 
 export const PollService = {
     // ============ FEED ============
-    getFeed: async (params?: { category?: string; search?: string; tag?: string; userId?: number }): Promise<Poll[]> => {
+    getFeed: async (params?: { category?: string; search?: string; tag?: string; userId?: number; creatorId?: number }): Promise<Poll[]> => {
         try {
             const query = new URLSearchParams();
             if (params?.category) query.append('category', params.category);
             if (params?.search) query.append('search', params.search);
             if (params?.tag) query.append('tag', params.tag);
             if (params?.userId) query.append('userId', String(params.userId));
+            if (params?.creatorId) query.append('creatorId', String(params.creatorId));
 
             const response = await fetch(`${API_URL}?${query.toString()}`);
             if (!response.ok) throw new Error('Network response was not ok');

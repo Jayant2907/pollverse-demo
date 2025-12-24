@@ -25,4 +25,7 @@ export class User {
 
     @Column('simple-array', { nullable: true })
     followers: string[];
+
+    @Column({ default: 0 })
+    pollsCount: number;
 }

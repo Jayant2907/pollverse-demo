@@ -71,8 +71,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                             <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{user.points?.toLocaleString() || 0}</p>
                             <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Points</p>
                         </div>
-                        <div className="text-center">
-                            <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{userPolls.length}</p>
+                        <div
+                            onClick={() => onNavigate('userPolls', user)}
+                            className="text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors p-1"
+                        >
+                            <p className="text-lg font-bold text-gray-800 dark:text-gray-200">{user.pollsCount || 0}</p>
                             <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Polls</p>
                         </div>
                         <div

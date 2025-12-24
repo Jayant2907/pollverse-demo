@@ -29,7 +29,14 @@ export class PollsService {
       votes: {},
       createdAt: new Date(),
     });
-    return this.pollsRepository.save(poll);
+    const savedPoll = await this.pollsRepository.save(poll);
+
+    // Update user's pollsCount
+    if (savedPoll.creatorId) {
+      await this.pollsRepository.manager.getRepository('User').increment({ id: savedPoll.creatorId }, 'pollsCount', 1);
+    }
+
+    return savedPoll;
   }
 
   async seed(pollsData: CreatePollDto[]) {
@@ -46,7 +53,7 @@ export class PollsService {
     return this.pollsRepository.save(polls);
   }
 
-  async findAll(query: { category?: string; search?: string; tag?: string; userId?: number }) {
+  async findAll(query: { category?: string; search?: string; tag?: string; userId?: number; creatorId?: number }) {
     const qb = this.pollsRepository.createQueryBuilder('poll');
     qb.leftJoinAndSelect('poll.creator', 'creator');
     qb.loadRelationCountAndMap('poll.commentsCount', 'poll.comments');
@@ -65,6 +72,10 @@ export class PollsService {
       }
     } else if (query.category && query.category !== 'For You' && query.category !== 'Following' && query.category !== 'Trending') {
       qb.andWhere('poll.category = :category', { category: query.category });
+    }
+
+    if (query.creatorId) {
+      qb.andWhere('poll.creatorId = :creatorId', { creatorId: query.creatorId });
     }
 
     if (query.search) {
@@ -141,7 +152,11 @@ export class PollsService {
     return this.pollsRepository.update(id, updatePollDto);
   }
 
-  remove(id: number) {
+  async remove(id: number) {
+    const poll = await this.pollsRepository.findOneBy({ id });
+    if (poll && poll.creatorId) {
+      await this.pollsRepository.manager.getRepository('User').decrement({ id: poll.creatorId }, 'pollsCount', 1);
+    }
     return this.pollsRepository.delete(id);
   }
 
