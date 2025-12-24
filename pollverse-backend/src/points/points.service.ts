@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
-import { PointTransaction } from './entities/point-transaction.entity';
+import { PointTransaction, ActionType } from './entities/point-transaction.entity';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
@@ -14,26 +14,9 @@ export class PointsService {
     ) { }
 
     private getLevel(points: number): number {
-        // Simple implementation: Level = 1 + floor(points / 100)
-        // Or the requirements: 1=0, 10=1000, 50=10000.  Roughly: Points = 4 * Level^2 + ...
-        // Let's use a simpler linear scale for MVP or a predefined map as per requirement
         if (points < 100) return 1;
-        if (points < 1000) return Math.floor(points / 100) + 1; // 100->Lv2, 900->Lv10
-        // After 1000, maybe slower?
-        return Math.floor(Math.sqrt(points)); // 1000 -> 31, 10000 -> 100. bit off.
-
-        // Let's stick to simple: Level = 1 + floor(points / 100)
-        // Lv 1 = 0-99
-        // Lv 10 = 900-999 (Requirement says Lv 10: Poll Master @ 1000 points. So 100 points per level fits)
-        // Lv 50 = 4900-4999 (Requirement says Lv 50: Oracle @ 10000 points. So 200 points per level?)
-
-        // Let's do thresholds:
-        // 0 -> 1
-        // 1000 -> 10
-        // 10000 -> 50
-
-        if (points < 1000) return 1 + Math.floor(points / 111); // Approx to get to 10 at 1000
-        return 10 + Math.floor((points - 1000) / 225); // Approx to get to 50 at 10000
+        if (points < 1000) return 1 + Math.floor(points / 111);
+        return 10 + Math.floor((points - 1000) / 225);
     }
 
     private getTitle(level: number): string {
@@ -42,60 +25,101 @@ export class PointsService {
         return 'Newbie';
     }
 
-    async awardPoints(userId: number, points: number, reason: PointTransaction['reason'], metadata?: Record<string, any>) {
-        // Daily Limit Check for 'create_poll'
-        if (reason === 'create_poll') {
+    /**
+     * Award points with duplicate prevention and ledger tracking
+     */
+    async awardPoints(
+        userId: number,
+        points: number,
+        actionType: ActionType,
+        targetId?: number,
+        metadata?: Record<string, any>
+    ): Promise<{ success: boolean; pointsEarned?: number; message?: string }> {
+
+        // Daily Limit Check for CREATE_POLL (max 3/day)
+        if (actionType === 'CREATE_POLL') {
             const startOfDay = new Date();
             startOfDay.setHours(0, 0, 0, 0);
 
             const count = await this.pointTransactionRepository.count({
                 where: {
                     userId,
-                    reason: 'create_poll',
+                    actionType: 'CREATE_POLL',
                     createdAt: MoreThan(startOfDay)
                 }
             });
 
             if (count >= 3) {
-                return { success: false, message: 'Daily limit reached for poll creation points' };
+                return { success: false, pointsEarned: 0, message: 'Daily limit reached for poll creation points' };
             }
         }
 
-        // Check for unique events (like Trending for a specific poll)
-        if (reason === 'trending_bonus' && metadata?.pollId) {
-            const existing = await this.pointTransactionRepository.createQueryBuilder('pt')
-                .where('pt.userId = :userId', { userId })
-                .andWhere('pt.reason = :reason', { reason: 'trending_bonus' })
-                .andWhere('pt.metadata LIKE :meta', { meta: `%"pollId":${metadata.pollId}%` }) // Simple check for JSON string
-                .getCount();
-
-            if (existing > 0) return { success: false, message: 'Already awarded' };
+        // Duplicate Prevention for FOLLOW (same user can't earn points for following same person twice)
+        if (actionType === 'FOLLOW' && targetId) {
+            const existing = await this.pointTransactionRepository.findOne({
+                where: { userId, actionType: 'FOLLOW', targetId }
+            });
+            if (existing) {
+                return { success: false, pointsEarned: 0, message: 'Already earned points for following this user' };
+            }
         }
 
-        // Record Transaction
+        // Duplicate Prevention for LIKE_COMMENT (same user can't earn points for liking same comment twice)
+        if (actionType === 'LIKE_COMMENT' && targetId) {
+            const existing = await this.pointTransactionRepository.findOne({
+                where: { userId, actionType: 'LIKE_COMMENT', targetId }
+            });
+            if (existing) {
+                return { success: false, pointsEarned: 0, message: 'Already earned points for liking this comment' };
+            }
+        }
+
+        // Duplicate Prevention for TRENDING_BONUS (same poll can only give trending bonus once)
+        if (actionType === 'TRENDING_BONUS' && targetId) {
+            const existing = await this.pointTransactionRepository.findOne({
+                where: { userId, actionType: 'TRENDING_BONUS', targetId }
+            });
+            if (existing) {
+                return { success: false, pointsEarned: 0, message: 'Already awarded trending bonus for this poll' };
+            }
+        }
+
+        // Record Transaction in Ledger
         const tx = this.pointTransactionRepository.create({
             userId,
             points,
-            reason,
-            metadata
+            actionType,
+            targetId,
+            metadata,
+            reason: actionType.toLowerCase() // Legacy compatibility
         });
         await this.pointTransactionRepository.save(tx);
 
-        // Update User
+        // Update User Points
         const user = await this.userRepository.findOneBy({ id: userId });
         if (user) {
             user.points = (user.points || 0) + points;
-            // user.level could be stored or calculated. For performance, let's just update points.
-            // If we add a level column, update it here.
-
             await this.userRepository.save(user);
-
-            // TODO: In future, emit WebSocket event here
-            return { success: true, newPoints: user.points, message: `+${points} Points` };
+            return { success: true, pointsEarned: points, message: `+${points} Points` };
         }
-        return { success: false };
+
+        return { success: false, pointsEarned: 0 };
     }
 
+    /**
+     * Get user's transaction ledger for Points History page
+     */
+    async getUserLedger(userId: number, limit = 50): Promise<PointTransaction[]> {
+        return this.pointTransactionRepository.find({
+            where: { userId },
+            order: { createdAt: 'DESC' },
+            take: limit
+        });
+    }
+
+    /**
+     * Get leaderboard
+     */
     async getLeaderboard(limit = 50) {
         return this.userRepository.find({
             order: { points: 'DESC' },
@@ -104,12 +128,21 @@ export class PointsService {
         });
     }
 
-    // Helper to get formatted user data with level
+    /**
+     * Get user rank with level info
+     */
     async getUserRank(userId: number) {
         const user = await this.userRepository.findOneBy({ id: userId });
         if (!user) return null;
+
+        // Calculate rank position
+        const higherRanked = await this.userRepository.count({
+            where: { points: MoreThan(user.points || 0) }
+        });
+
         const level = this.getLevel(user.points || 0);
         return {
+            rank: higherRanked + 1,
             points: user.points || 0,
             level,
             title: this.getTitle(level)

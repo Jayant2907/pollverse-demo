@@ -88,7 +88,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                         </div>
                     </div>
                     <div className="grid grid-cols-4 gap-2 mt-6 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 py-3 px-2 rounded-xl w-full shadow-sm">
-                        <div className="text-center">
+                        <div
+                            onClick={() => isMainUser && onNavigate('pointsLedger')}
+                            className={`text-center ${isMainUser ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors' : ''} p-1`}
+                        >
                             <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{user.points?.toLocaleString() || 0}</p>
                             <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">Points</p>
                         </div>

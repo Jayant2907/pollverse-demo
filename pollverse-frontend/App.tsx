@@ -25,6 +25,7 @@ import SurveyPage from './pages/SurveyPage';
 import UserPollsPage from './pages/UserPollsPage';
 import AdminPage from './pages/AdminPage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import PointsLedgerPage from './pages/PointsLedgerPage';
 
 function App() {
     const [page, setPage] = useState<PageState>({ name: 'feed', data: null });
@@ -102,21 +103,34 @@ function App() {
         setPage({ name: 'feed' });
     };
 
-    const handleCreatePoll = (newPollData: Partial<Poll>) => {
-        PollService.createPoll({ ...newPollData, creator: currentUser }).then(newPoll => {
+    const handleCreatePoll = async (newPollData: Partial<Poll>) => {
+        try {
+            const newPoll = await PollService.createPoll({ ...newPollData, creator: currentUser });
             setPolls(prevPolls => [newPoll, ...prevPolls]);
+
+            // Check if points were actually awarded (respects daily limit from backend)
+            const rankData = await fetch(`http://localhost:3000/points/rank/${currentUser.id}`).then(r => r.json());
+            const pointsAwarded = rankData && rankData.points > (currentUser.points || 0);
 
             const updatedUser = {
                 ...currentUser,
-                points: (currentUser.points || 0) + 50,
+                points: rankData?.points || currentUser.points,
                 pollsCount: (currentUser.pollsCount || 0) + 1
             };
             setCurrentUser(updatedUser);
             localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
-            showToast('Poll created! +50 Points');
+
+            if (pointsAwarded) {
+                showToast('Poll created! +50 Points');
+            } else {
+                showToast('Poll created!');
+            }
 
             setPage({ name: 'feed' });
-        });
+        } catch (e) {
+            console.error('Failed to create poll:', e);
+            showToast('Failed to create poll');
+        }
     };
 
     const handleNavigation = (name: string, data?: any) => {
@@ -193,11 +207,14 @@ function App() {
         const isFollowing = currentUser.following.includes(String(targetId)) || currentUser.following.includes(targetId);
 
         try {
+            let response;
             if (isFollowing) {
-                await UserService.unfollow(Number(currentUser.id), targetId);
+                response = await UserService.unfollow(Number(currentUser.id), targetId);
             } else {
-                await UserService.follow(Number(currentUser.id), targetId);
+                response = await UserService.follow(Number(currentUser.id), targetId);
             }
+
+            const pointsEarned = response?.pointsEarned || 0;
 
             setCurrentUser(prev => {
                 const following = prev.following.includes(String(targetId)) || prev.following.includes(targetId)
@@ -206,7 +223,7 @@ function App() {
                 const updated = {
                     ...prev,
                     following,
-                    points: (prev.points || 0) + (isFollowing ? 0 : 10) // AWARD points for follow
+                    points: (prev.points || 0) + pointsEarned
                 };
                 localStorage.setItem('pollverse_user', JSON.stringify(updated));
                 return updated;
@@ -228,7 +245,11 @@ function App() {
             if (isFollowing) {
                 showToast('Unfollowed successfully');
             } else {
-                showToast('Followed successfully! +10 Points');
+                if (pointsEarned > 0) {
+                    showToast(`Followed successfully! +${pointsEarned} Points`);
+                } else {
+                    showToast('Followed successfully!');
+                }
             }
         } catch (e) {
             console.error("Failed to toggle follow:", e);
@@ -318,6 +339,8 @@ function App() {
                 return <AdminPage onBack={() => setPage({ name: 'feed' })} />;
             case 'leaderboard':
                 return <LeaderboardPage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} />;
+            case 'pointsLedger':
+                return <PointsLedgerPage onBack={() => handleNavigation('profile', currentUser)} onNavigate={handleNavigation} currentUser={currentUser} />;
             default:
                 return null;
         }

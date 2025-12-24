@@ -14,4 +14,9 @@ export class PointsController {
     getRank(@Param('id') id: string) {
         return this.pointsService.getUserRank(+id);
     }
+
+    @Get('ledger/:userId')
+    getLedger(@Param('userId') userId: string) {
+        return this.pointsService.getUserLedger(+userId);
+    }
 }

@@ -41,7 +41,7 @@ export class PollsService {
 
     // Award Points for Creation
     if (savedPoll.creatorId) {
-      await this.pointsService.awardPoints(savedPoll.creatorId, 50, 'create_poll', { pollId: savedPoll.id });
+      await this.pointsService.awardPoints(savedPoll.creatorId, 50, 'CREATE_POLL', savedPoll.id, { pollId: savedPoll.id });
     }
 
     return savedPoll;
@@ -218,11 +218,12 @@ export class PollsService {
 
     // Award Points for Voting
     let points = 5;
-    if (poll.pollType === 'swipe') points = 10;
-    if (poll.pollType === 'survey') points = 20;
-    const ptResult = await this.pointsService.awardPoints(userId, points, 'vote', { pollId });
+    let actionType: 'VOTE' | 'SWIPE_BONUS' | 'SURVEY_COMPLETE' = 'VOTE';
+    if (poll.pollType === 'swipe') { points = 10; actionType = 'SWIPE_BONUS'; }
+    if (poll.pollType === 'survey') { points = 20; actionType = 'SURVEY_COMPLETE'; }
+    const ptResult = await this.pointsService.awardPoints(userId, points, actionType, pollId, { pollId });
 
-    return { success: true, message: 'Vote recorded', votes: poll.votes, pointsEarned: ptResult.success ? points : 0 };
+    return { success: true, message: 'Vote recorded', votes: poll.votes, pointsEarned: ptResult.pointsEarned || 0 };
   }
 
   async getUserVote(pollId: number, userId: number) {
@@ -271,7 +272,7 @@ export class PollsService {
       poll.likes = (poll.likes || 0) + 1;
       // Check for Trending Status (50 Likes)
       if ((poll.likes || 0) + 1 === 50 && poll.creatorId) {
-        await this.pointsService.awardPoints(poll.creatorId, 500, 'trending_bonus', { pollId: poll.id });
+        await this.pointsService.awardPoints(poll.creatorId, 500, 'TRENDING_BONUS', poll.id, { pollId: poll.id });
         // Notify user about trending status?
       }
 
@@ -356,7 +357,7 @@ export class PollsService {
       await this.commentRepository.save(comment);
       // Award points for comment like
       if (comment.userId) {
-        await this.pointsService.awardPoints(comment.userId, 2, 'comment_like', { commentId, pollId: comment.pollId });
+        await this.pointsService.awardPoints(comment.userId, 2, 'LIKE_COMMENT', commentId, { commentId, pollId: comment.pollId });
       }
       return { success: true, likes: comment.likes };
     }
