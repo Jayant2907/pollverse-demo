@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User, Poll } from '../types';
-import { ChevronLeftIcon, CogIcon, LogoutIcon, XIcon } from '../components/Icons';
+import { ChevronLeftIcon, CogIcon, LogoutIcon, XIcon, ShieldCheck, Clock, FileEdit, ShieldAlert } from '../components/Icons';
 import { UserService } from '../services/UserService';
+import { PollService } from '../services/PollService';
+import PollCard from '../components/poll/PollCard';
 
 interface ProfilePageProps {
     user: User;
@@ -14,7 +16,11 @@ interface ProfilePageProps {
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onLogout, currentUser, onToggleFollow, allPolls }) => {
-    const [activeTab, setActiveTab] = useState<'created' | 'voted'>('created');
+    const [activeTab, setActiveTab] = useState<'created' | 'voted' | 'status'>('created');
+    const [statusPolls, setStatusPolls] = useState<Poll[]>([]);
+    const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+    const [selectedPollForStatus, setSelectedPollForStatus] = useState<Poll | null>(null);
+
     const isMainUser = user.id === currentUser.id;
     const isFollowing = currentUser.following.some(id => String(id) === String(user.id));
 
@@ -53,8 +59,20 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
         }
     }, [modalMode, user.id]);
 
+    useEffect(() => {
+        if (isMainUser) {
+            setIsLoadingStatus(true);
+            PollService.getFeed({ creatorId: Number(currentUser.id), userId: Number(currentUser.id) })
+                .then(data => {
+                    const nonPublished = data.filter(p => p.status !== 'PUBLISHED');
+                    setStatusPolls(nonPublished);
+                    setIsLoadingStatus(false);
+                });
+        }
+    }, [isMainUser, currentUser.id]);
+
     return (
-        <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in">
+        <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in relative overflow-hidden">
             <header className="flex-shrink-0 flex items-center p-4 border-b border-gray-200 dark:border-gray-800 justify-between">
                 <button onClick={onBack} className="text-blue-600 p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronLeftIcon /></button>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Profile</h1>
@@ -62,7 +80,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                     <button onClick={() => onNavigate('settings')} className="text-gray-500 p-2 -mr-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><CogIcon /></button>
                 ) : <div className="w-10 h-10"></div>}
             </header>
-            <div className="overflow-y-auto">
+
+            <div className="flex-grow overflow-y-auto">
                 <div className="p-4 flex flex-col items-center text-center">
                     <img src={user.avatar} alt={user.username} className="w-24 h-24 rounded-full border-4 border-white dark:border-black mb-4 shadow-lg object-cover" />
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{user.username}</h2>
@@ -118,32 +137,74 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                         </div>
                     </div>
                 </div>
-                {isMainUser && <button onClick={() => onNavigate('editProfile')} className="mx-4 mb-2 p-3 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold rounded-lg">Edit Profile</button>}
+
+                {isMainUser && <button onClick={() => onNavigate('editProfile')} className="mx-4 mb-2 p-3 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold rounded-lg w-[calc(100%-32px)]">Edit Profile</button>}
+
                 <div className="px-4">
                     <h3 className="text-md font-bold mb-2 text-gray-800 dark:text-gray-200">Badges</h3>
-                    <div className="flex space-x-3 overflow-x-auto pb-2">
+                    <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide">
                         <div className="flex-shrink-0 w-24 flex flex-col items-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-200 dark:border-blue-800 text-center"><span className="text-3xl">🏆</span><p className="text-xs font-semibold mt-1">Top 10%</p></div>
                         <div className="flex-shrink-0 w-24 flex flex-col items-center p-3 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-center"><span className="text-3xl">✍️</span><p className="text-xs font-semibold mt-1">Creator</p></div>
                         <div className="flex-shrink-0 w-24 flex flex-col items-center p-3 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-center"><span className="text-3xl">🗳️</span><p className="text-xs font-semibold mt-1">Voter</p></div>
                     </div>
                 </div>
+
                 <div className="mt-4 border-t border-gray-200 dark:border-gray-800">
                     <div className="flex">
-                        <button onClick={() => setActiveTab('created')} className={`w-1/2 p-3 font-semibold text-center transition-colors ${activeTab === 'created' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400'}`}>Created</button>
-                        <button onClick={() => setActiveTab('voted')} className={`w-1/2 p-3 font-semibold text-center transition-colors ${activeTab === 'voted' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400'}`}>Voted</button>
+                        <button onClick={() => setActiveTab('created')} className={`flex-1 p-3 font-semibold text-center transition-colors ${activeTab === 'created' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400'}`}>Created</button>
+                        <button onClick={() => setActiveTab('voted')} className={`flex-1 p-3 font-semibold text-center transition-colors ${activeTab === 'voted' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400'}`}>Voted</button>
+                        {isMainUser && (
+                            <button onClick={() => setActiveTab('status')} className={`flex-1 p-3 font-semibold text-center transition-colors flex items-center justify-center space-x-1 ${activeTab === 'status' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400'}`}>
+                                <span>Status</span>
+                                {statusPolls.length > 0 && (
+                                    <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold">
+                                        {statusPolls.length}
+                                    </span>
+                                )}
+                            </button>
+                        )}
                     </div>
+
                     <div className="p-4">
-                        {activeTab === 'created' ? (
+                        {activeTab === 'created' && (
                             <div className="grid grid-cols-2 gap-3">
                                 {userPolls.length > 0 ? userPolls.map(poll => (<div key={poll.id} className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm"><p className="font-semibold truncate">{poll.question}</p></div>)) : <div className="col-span-2 text-center text-gray-400 p-8">{isMainUser ? "You haven't" : "This user hasn't"} created any polls yet.</div>}
                             </div>
-                        ) : (
+                        )}
+                        {activeTab === 'voted' && (
                             <div className="grid grid-cols-2 gap-3">
                                 {votedPolls.length > 0 ? votedPolls.map(poll => (<div key={poll.id} className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm"><p className="font-semibold truncate">{poll.question}</p></div>)) : <div className="col-span-2 text-center text-gray-400 p-8">Voted polls will appear here.</div>}
                             </div>
                         )}
+                        {activeTab === 'status' && (
+                            <div className="space-y-3">
+                                {isLoadingStatus ? (
+                                    <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+                                ) : statusPolls.length > 0 ? statusPolls.map(poll => (
+                                    <div key={poll.id} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded 
+                                                ${poll.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                                                    poll.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                {poll.status === 'PENDING' ? 'In Review' : poll.status === 'REJECTED' ? 'Rejected' : 'Action Needed'}
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 font-medium">{poll.createdAt ? new Date(poll.createdAt).toLocaleDateString() : ''}</span>
+                                        </div>
+                                        <h4 className="font-bold text-gray-900 dark:text-gray-100 mb-1">{poll.question}</h4>
+                                        <p className="text-xs text-gray-500 line-clamp-1 mb-3">{poll.description || 'No description'}</p>
+                                        <button
+                                            onClick={() => setSelectedPollForStatus(poll)}
+                                            className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center"
+                                        >
+                                            View Timeline & Details <span className="ml-1">→</span>
+                                        </button>
+                                    </div>
+                                )) : <div className="text-center text-gray-400 p-8">No polls in review.</div>}
+                            </div>
+                        )}
                     </div>
                 </div>
+
                 {isMainUser && (
                     <div className="p-4 mt-4">
                         <button onClick={onLogout} className="w-full flex items-center justify-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
@@ -196,6 +257,125 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                             )}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Poll Status Detail Modal */}
+            {selectedPollForStatus && (
+                <div className="absolute inset-0 bg-white dark:bg-gray-900 z-[60] flex flex-col animate-slide-up">
+                    <header className="flex-shrink-0 flex items-center p-4 border-b border-gray-100 dark:border-gray-800">
+                        <button onClick={() => setSelectedPollForStatus(null)} className="text-blue-600 p-2 -ml-2 rounded-full hover:bg-gray-50 dark:hover:bg-gray-800"><ChevronLeftIcon /></button>
+                        <h2 className="text-lg font-bold mx-auto">Poll Status</h2>
+                        <div className="w-8"></div>
+                    </header>
+                    <div className="flex-grow overflow-y-auto">
+                        {/* Status Summary Banner */}
+                        <div className={`p-4 flex items-center justify-between
+                            ${selectedPollForStatus.status === 'PENDING' ? 'bg-yellow-50 text-yellow-800' :
+                                selectedPollForStatus.status === 'REJECTED' ? 'bg-red-50 text-red-800' : 'bg-orange-50 text-orange-800'}`}>
+                            <div>
+                                <h3 className="font-bold">
+                                    {selectedPollForStatus.status === 'PENDING' ? 'In Review' :
+                                        selectedPollForStatus.status === 'REJECTED' ? 'Rejected' : 'Changes Requested'}
+                                </h3>
+                                <p className="text-xs opacity-80">
+                                    {selectedPollForStatus.status === 'PENDING' ?
+                                        `${(selectedPollForStatus.moderationLogs || []).filter(l => l.action === 'APPROVE').length}/2 Approvals Received` :
+                                        'Action required'}
+                                </p>
+                            </div>
+                            <div className="text-2xl">
+                                {selectedPollForStatus.status === 'PENDING' ? <Clock className="w-6 h-6" /> : <ShieldAlert className="w-6 h-6" />}
+                            </div>
+                        </div>
+
+                        {/* Timeline */}
+                        <div className="p-6 relative">
+                            <div className="absolute left-[31px] top-10 bottom-10 w-0.5 bg-gray-100 dark:bg-gray-800"></div>
+
+                            <div className="space-y-8">
+                                {/* Initial Submission */}
+                                <div className="relative pl-12">
+                                    <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-blue-500 border-4 border-white dark:border-gray-900 z-10"></div>
+                                    <p className="text-[10px] text-gray-400 font-bold mb-1">{selectedPollForStatus.createdAt ? new Date(selectedPollForStatus.createdAt).toLocaleString() : ''}</p>
+                                    <p className="font-bold text-gray-900 dark:text-gray-100">Poll Submitted</p>
+                                    <p className="text-xs text-gray-500">You submitted this poll for review.</p>
+                                </div>
+
+                                {/* Moderation Logs */}
+                                {(selectedPollForStatus.moderationLogs || []).slice().reverse().map((log) => (
+                                    <div key={log.id} className="relative pl-12 animate-fade-in">
+                                        <div className={`absolute left-0 top-0 w-8 h-8 rounded-full border-4 border-white dark:border-gray-900 z-10 flex items-center justify-center
+                                            ${log.action === 'APPROVE' ? 'bg-green-500' :
+                                                log.action === 'REJECT' ? 'bg-red-500' : 'bg-orange-500'}`}>
+                                            {log.action === 'APPROVE' ? <ShieldCheck className="w-4 h-4 text-white" /> :
+                                                log.action === 'REJECT' ? <ShieldAlert className="w-4 h-4 text-white" /> : <FileEdit className="w-4 h-4 text-white" />}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 font-bold mb-1">{new Date(log.createdAt).toLocaleString()}</p>
+                                        <p className="font-bold text-gray-900 dark:text-gray-100">
+                                            {log.action === 'APPROVE' ? 'Approved' : log.action === 'REJECT' ? 'Rejected' : 'Requested Edit'}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 mb-2 uppercase tracking-widest font-bold">Moderator ID: {log.moderatorId}</p>
+                                        {log.comment && (
+                                            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 italic text-gray-600 dark:text-gray-400 text-xs">
+                                                "{log.comment}"
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {selectedPollForStatus.status === 'PENDING' && (
+                                    <div className="relative pl-12">
+                                        <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 border-4 border-white dark:border-gray-900 z-10 flex items-center justify-center">
+                                            <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600 animate-pulse"></div>
+                                        </div>
+                                        <p className="font-bold text-gray-400 italic text-sm mt-1">Waiting for final review...</p>
+                                    </div>
+                                )}
+
+                                {selectedPollForStatus.status === 'REJECTED' && (
+                                    <div className="relative pl-12">
+                                        <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 border-4 border-white dark:border-gray-900 z-10 flex items-center justify-center">
+                                            <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                                        </div>
+                                        <p className="font-bold text-gray-400 italic text-sm mt-1">Process Stopped</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Snapshot Preview */}
+                        <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
+                            <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 text-center mb-6">Snapshot Preview</p>
+                            <div className="max-w-md mx-auto pointer-events-none opacity-80 scale-95 origin-top transform">
+                                <PollCard
+                                    poll={selectedPollForStatus}
+                                    currentUser={currentUser}
+                                    isLoggedIn={true}
+                                    onNavigate={() => { }}
+                                    onVote={() => { }}
+                                    requireLogin={() => { }}
+                                    showToast={() => { }}
+                                    readOnly={true}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {selectedPollForStatus.status === 'CHANGES_REQUESTED' && (
+                        <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
+                            <button
+                                onClick={() => {
+                                    onNavigate('addPoll', selectedPollForStatus);
+                                    setSelectedPollForStatus(null);
+                                }}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center space-x-2"
+                            >
+                                <FileEdit className="w-5 h-5" />
+                                <span>Edit & Resubmit</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

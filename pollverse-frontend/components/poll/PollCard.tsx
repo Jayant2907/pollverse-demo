@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Poll, User } from '../../types';
 import { getTotalVotes, timeAgo } from '../../constants';
-import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon, DuplicateIcon, XIcon, ChevronLeftIcon } from '../Icons';
+import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon, DuplicateIcon, XIcon, ChevronLeftIcon, ShieldCheck } from '../Icons';
 import SvgPlaceholder from '../ui/SvgPlaceholder';
 import SwipePoll from './SwipePoll';
+import ModerationTimeline from './ModerationTimeline';
+
 import confetti from 'canvas-confetti';
 
 interface PollCardProps {
@@ -15,9 +17,10 @@ interface PollCardProps {
     onVote: (pollId: number | string, pointsEarned?: number) => void;
     onVoteComplete?: () => void;
     currentUser: User;
+    readOnly?: boolean;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete, currentUser }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete, currentUser, readOnly }) => {
     const [userVote, setUserVote] = useState<string | number | null>(poll.userVote || null);
     const [interaction, setInteraction] = useState<'like' | 'dislike' | null>(poll.userInteraction || null);
     const [likesCount, setLikesCount] = useState(poll.likes || 0);
@@ -25,6 +28,11 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
     const [showFullDescription, setShowFullDescription] = useState(false);
     const [interactorsModal, setInteractorsModal] = useState<{ type: 'like' | 'dislike', users: User[] } | null>(null);
     const [isLoadingInteractors, setIsLoadingInteractors] = useState(false);
+    const [showModeration, setShowModeration] = useState(false);
+
+    // Check moderator status: Top 4 on leaderboard
+    const isModerator = (currentUser?.rank || 999) <= 4;
+
 
     useEffect(() => {
         setUserVote(poll.userVote || null);
@@ -51,6 +59,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
     // ... (rest of state)
 
     const handleInteract = async (type: 'like' | 'dislike') => {
+        if (readOnly) return;
         if (!isLoggedIn) {
             requireLogin(() => handleInteract(type));
             return;
@@ -124,7 +133,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
     };
 
     const handleVote = async (optionId: string | number) => {
-        if (isPollClosed) return;
+        if (isPollClosed || readOnly) return;
 
         if (!isLoggedIn) {
             requireLogin(() => handleVote(optionId));
@@ -206,7 +215,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
     };
 
     const renderPollContent = () => {
-        const isDisabled = !!userVote || !!isPollClosed;
+        const isDisabled = !!userVote || !!isPollClosed || !!readOnly;
 
         switch (poll.pollType) {
             case 'swipe':
@@ -221,6 +230,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                 return (
                     <SwipePoll
                         poll={poll}
+                        readOnly={readOnly}
                         onVoteComplete={async () => {
                             if (isLoggedIn) {
                                 try {
@@ -280,8 +290,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                 return (
                     <div className="px-2">
                         {!userVote ? rankedItems.map((item, index) => (
-                            <div key={item.id} draggable={!isPollClosed} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDrop} onDragOver={(e) => e.preventDefault()}
-                                className={`flex items-center space-x-3 bg-gray-100 dark:bg-gray-700 p-3 my-2 rounded-lg border border-gray-200 dark:border-gray-600 ${isPollClosed ? 'cursor-not-allowed opacity-70' : 'cursor-grab active:cursor-grabbing'}`}>
+                            <div key={item.id} draggable={!isPollClosed && !readOnly} onDragStart={(e) => handleDragStart(e, index)} onDragEnter={(e) => handleDragEnter(e, index)} onDragEnd={handleDrop} onDragOver={(e) => e.preventDefault()}
+                                className={`flex items-center space-x-3 bg-gray-100 dark:bg-gray-700 p-3 my-2 rounded-lg border border-gray-200 dark:border-gray-600 ${isPollClosed || readOnly ? 'cursor-not-allowed opacity-70' : 'cursor-grab active:cursor-grabbing'}`}>
                                 <span className="font-bold text-gray-400">{index + 1}</span>
                                 <MenuIcon />
                                 <span className="font-semibold text-gray-800 dark:text-gray-200">{item.text}</span>
@@ -346,7 +356,20 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                         </div>
                     </button>
                     <div className="flex items-center space-x-2">
+                        {/* Status for Creator/Mod */}
+                        {((Number(currentUser?.id) === Number(poll.creatorId) && poll.status !== 'PUBLISHED') ||
+                            (isModerator && poll.status === 'PENDING')) && poll.status && (
+                                <button onClick={(e) => { e.stopPropagation(); setShowModeration(true); }}
+                                    className={`p-1 rounded-full border ${poll.status === 'PENDING' ? 'text-yellow-600 border-yellow-200 bg-yellow-50' :
+                                        poll.status === 'REJECTED' ? 'text-red-600 border-red-200 bg-red-50' :
+                                            poll.status === 'CHANGES_REQUESTED' ? 'text-orange-600 border-orange-200 bg-orange-50' :
+                                                'text-blue-600 border-blue-200'
+                                        }`}>
+                                    <ShieldCheck className="w-4 h-4" />
+                                </button>
+                            )}
                         {isPollClosed && (
+
                             <span className="text-xs font-bold text-red-500 border border-red-500 px-2 py-0.5 rounded-full">
                                 {isTimeExpired ? 'Expired' : 'Ended'}
                             </span>
@@ -471,7 +494,68 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                     </div>
                 </div>
             )}
+            {/* Moderation Modal */}
+            {showModeration && (
+                <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4 rounded-2xl animate-fade-in" onClick={() => setShowModeration(false)}>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-sm p-5 max-h-[85%] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold dark:text-gray-100">Content Status</h3>
+                            <button onClick={() => setShowModeration(false)}><XIcon /></button>
+                        </div>
+
+                        <div className={`p-2 rounded-lg text-center font-bold mb-4 text-sm ${poll.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                            poll.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                poll.status === 'CHANGES_REQUESTED' ? 'bg-orange-100 text-orange-800' :
+                                    'bg-green-100 text-green-800'
+                            }`}>
+                            {poll.status || 'PUBLISHED'}
+                        </div>
+
+                        <div className="mb-4">
+                            <h4 className="text-sm font-semibold text-gray-500 mb-2">History</h4>
+                            <ModerationTimeline pollId={poll.id} />
+                        </div>
+
+                        {isModerator && poll.status === 'PENDING' && (
+                            <div className="mt-6 flex flex-col gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
+                                <h4 className="font-semibold text-sm">Moderator Actions</h4>
+                                <div className="flex gap-2">
+                                    <button onClick={async () => {
+                                        if (confirm('Approve this content?')) {
+                                            const PollService = (await import('../../services/PollService')).PollService;
+                                            await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'APPROVE');
+                                            setShowModeration(false);
+                                            showToast('Approved!');
+                                            // Refresh logic needed? Ideally callback
+                                        }
+                                    }} className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold text-sm transition-colors">Approve</button>
+
+                                    <button onClick={async () => {
+                                        const reason = prompt('Reason for rejection:');
+                                        if (reason) {
+                                            const PollService = (await import('../../services/PollService')).PollService;
+                                            await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'REJECT', reason);
+                                            setShowModeration(false);
+                                            showToast('Content Rejected');
+                                        }
+                                    }} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold text-sm transition-colors">Reject</button>
+                                </div>
+                                <button onClick={async () => {
+                                    const changes = prompt('What needs to be changed?');
+                                    if (changes) {
+                                        const PollService = (await import('../../services/PollService')).PollService;
+                                        await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'REQUEST_CHANGES', changes);
+                                        setShowModeration(false);
+                                        showToast('Changes Requested');
+                                    }
+                                }} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-bold text-sm transition-colors">Request Changes</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
+
     );
 };
 

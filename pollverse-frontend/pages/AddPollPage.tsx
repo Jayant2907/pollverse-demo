@@ -11,12 +11,12 @@ interface AddPollPageProps {
 
 const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initialData }) => {
     const [pollType, setPollType] = useState<Poll['pollType']>(initialData?.pollType || 'multiple_choice');
-    const [question, setQuestion] = useState(initialData ? `${initialData.question} (Copy)` : '');
+    const [question, setQuestion] = useState(initialData?.question || '');
     const [description, setDescription] = useState(initialData?.description || '');
     const [tags, setTags] = useState(initialData?.tags?.join(' ') || '');
     const [category, setCategory] = useState(initialData?.category || CATEGORIES[1]);
     const [options, setOptions] = useState<PollOption[]>(
-        initialData?.options?.map(opt => ({ ...opt, id: Date.now() + Math.random() })) || [
+        initialData?.options || [
             { id: 1, text: '' },
             { id: 2, text: '' },
         ]);
@@ -71,12 +71,13 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
             question,
             description,
             pollType,
-            options: finalOptions.map(opt => ({ ...opt, id: `opt-${Math.random()}` })),
+            options: finalOptions.map(opt => ({ ...opt })),
             category,
             tags: tags.split(' ').map(t => t.trim().replace(/^#/, '')).filter(t => t.length > 0),
             ...(pollType === 'swipe' ? { swipeResults } : {}),
             expiresAt: expiresAt ? new Date(expiresAt) : undefined,
             maxVotes: maxVotes ? parseInt(maxVotes) : undefined,
+            id: initialData?.id,
         };
 
         onPollCreate(newPollData);
@@ -157,7 +158,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
         <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in">
             <header className="flex-shrink-0 flex items-center p-4 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white/80 dark:bg-black/80 backdrop-blur-sm z-10">
                 <button onClick={onBack} className="text-blue-600 p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronLeftIcon /></button>
-                <h1 className="text-xl font-bold mx-auto text-gray-900 dark:text-gray-100">Create Poll</h1>
+                <h1 className="text-xl font-bold mx-auto text-gray-900 dark:text-gray-100">{initialData ? 'Edit' : 'Create'} Poll</h1>
                 <div className="w-8"></div>
             </header>
 
@@ -273,7 +274,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
 
             <footer className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
                 <button onClick={handleSubmit} disabled={!isFormValid()} className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors">
-                    Post Poll
+                    {initialData ? 'Update & Resubmit' : 'Post Poll'}
                 </button>
             </footer>
         </div>

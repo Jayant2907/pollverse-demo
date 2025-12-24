@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
 
-export type ActionType = 'VOTE' | 'CREATE_POLL' | 'FOLLOW' | 'LIKE_COMMENT' | 'TRENDING_BONUS' | 'SURVEY_COMPLETE' | 'SWIPE_BONUS' | 'CLAWBACK';
+export type ActionType = 'VOTE' | 'CREATE_POLL' | 'FOLLOW' | 'LIKE_COMMENT' | 'TRENDING_BONUS' | 'SURVEY_COMPLETE' | 'SWIPE_BONUS' | 'CLAWBACK' | 'POLL_PUBLISHED';
+
 
 @Entity()
 @Index(['userId', 'actionType', 'targetId']) // Composite index for duplicate checks

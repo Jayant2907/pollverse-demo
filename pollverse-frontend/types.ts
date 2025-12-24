@@ -8,7 +8,10 @@ export interface User {
   following: (number | string)[]; // Array of User IDs
   followers: (number | string)[]; // Array of User IDs
   pollsCount: number;
+  trustLevel?: number;
+  rank?: number;
 }
+
 
 export interface Comment {
   id: number | string;
@@ -61,6 +64,19 @@ export interface Poll {
   // Social state for current user
   userInteraction?: 'like' | 'dislike' | null;
   userVote?: string | number | null;
+  status: 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'CHANGES_REQUESTED';
+  createdAt: Date;
+  moderationLogs?: ModerationLog[];
+}
+
+export interface ModerationLog {
+  id: number;
+  pollId: number;
+  moderatorId: number;
+  moderator: User;
+  action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES';
+  comment?: string;
+  createdAt: string; // Date string from JSON
 }
 
 export interface PageState {

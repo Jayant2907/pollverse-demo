@@ -7,6 +7,8 @@ import { Poll } from './entities/poll.entity';
 import { Comment } from './entities/comment.entity';
 import { Vote } from './entities/vote.entity';
 import { Interaction } from '../users/entities/interaction.entity';
+import { ModerationLog } from './entities/moderation-log.entity';
+
 import { NotificationsService } from '../notifications/notifications.service';
 
 import { PointsService } from '../points/points.service';
@@ -22,6 +24,9 @@ export class PollsService {
     private voteRepository: Repository<Vote>,
     @InjectRepository(Interaction)
     private interactionRepository: Repository<Interaction>,
+    @InjectRepository(ModerationLog)
+    private moderationLogRepository: Repository<ModerationLog>,
+
     private readonly notificationsService: NotificationsService,
     private readonly pointsService: PointsService,
   ) { }
@@ -30,7 +35,9 @@ export class PollsService {
     const poll = this.pollsRepository.create({
       ...createPollDto,
       votes: {},
+      status: 'PENDING',
       createdAt: new Date(),
+
     });
     const savedPoll = await this.pollsRepository.save(poll);
 
@@ -78,7 +85,8 @@ export class PollsService {
         // Here we return empty by adding a condition that's never true
         qb.andWhere('1 = 0');
       }
-    } else if (query.category && query.category !== 'For You' && query.category !== 'Following' && query.category !== 'Trending') {
+    } else if (query.category && !['For You', 'Following', 'Trending', 'Pending'].includes(query.category)) {
+
       qb.andWhere('poll.category = :category', { category: query.category });
     }
 
@@ -99,6 +107,33 @@ export class PollsService {
     } else {
       qb.orderBy('poll.createdAt', 'DESC');
     }
+
+    // Status Filtering
+    if (query.category === 'Pending') {
+      qb.andWhere('poll.status = :status', { status: 'PENDING' });
+      // Clear category filter if it was applied erroneously by line 82 logic (if 'Pending' is not in exclude list)
+      // Actually line 81 logic: if category is 'Pending', it adds `poll.category = 'Pending'`.
+      // We assume 'Pending' is a special UI category, not a DB category.
+      // So we might need to adjust line 81 or just Ensure 'Pending' isn't checked there.
+      // Ideally, the Controller handles this mapping.
+    } else if (query.creatorId) {
+      if (query.userId && Number(query.userId) === Number(query.creatorId)) {
+        // Creator viewing their own profile - show all
+      } else {
+        // Viewing someone else's profile - show only published
+        qb.andWhere('poll.status = :status', { status: 'PUBLISHED' });
+      }
+    } else {
+      // General feed
+      qb.andWhere('poll.status = :status', { status: 'PUBLISHED' });
+    }
+
+    if (query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {
+      qb.leftJoinAndSelect('poll.moderationLogs', 'logs');
+      qb.leftJoinAndSelect('logs.moderator', 'moderator');
+      qb.orderBy('logs.createdAt', 'DESC');
+    }
+
 
     const polls = await qb.getMany();
 
@@ -156,8 +191,15 @@ export class PollsService {
 
 
 
-  update(id: number, updatePollDto: UpdatePollDto) {
-    return this.pollsRepository.update(id, updatePollDto);
+  async update(id: number, updatePollDto: UpdatePollDto) {
+    const poll = await this.pollsRepository.findOneBy({ id });
+    if (!poll) return null;
+
+    // Any edit to a poll triggers re-moderation
+    poll.status = 'PENDING';
+
+    Object.assign(poll, updatePollDto);
+    return this.pollsRepository.save(poll);
   }
 
   async remove(id: number) {
@@ -376,5 +418,69 @@ export class PollsService {
       relations: ['user'],
     });
     return interactions.map(i => i.user);
+  }
+
+  // ============ MODERATION ============
+  async moderatorAction(pollId: number, moderatorId: number, action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', comment?: string) {
+    const poll = await this.pollsRepository.findOneBy({ id: pollId });
+    if (!poll) return { success: false, message: 'Poll not found' };
+
+    // Limit to Top 4 users
+    const rankInfo = await this.pointsService.getUserRank(moderatorId);
+    if (!rankInfo || rankInfo.rank > 4) {
+      return { success: false, message: 'Only Top 4 users on the leaderboard can moderate content.' };
+    }
+
+    // Prevent duplicate actions
+    const existing = await this.moderationLogRepository.findOne({
+      where: { pollId, moderatorId, action }
+    });
+    if (existing) {
+      return { success: false, message: `You have already ${action.toLowerCase().replace('_', ' ')}d this poll.` };
+    }
+
+    const log = this.moderationLogRepository.create({
+      pollId,
+      moderatorId,
+      action,
+      comment
+    });
+    await this.moderationLogRepository.save(log);
+
+    if (action === 'REJECT') {
+      poll.status = 'REJECTED';
+      await this.pollsRepository.save(poll);
+    } else if (action === 'REQUEST_CHANGES') {
+      poll.status = 'CHANGES_REQUESTED';
+      await this.pollsRepository.save(poll);
+    } else if (action === 'APPROVE') {
+      // Check distinct approvals
+      const result = await this.moderationLogRepository
+        .createQueryBuilder('log')
+        .select('COUNT(DISTINCT log.moderatorId)', 'count')
+        .where('log.pollId = :pollId', { pollId })
+        .andWhere('log.action = :action', { action: 'APPROVE' })
+        .getRawOne();
+
+      const approvalCount = parseInt(result.count || '0');
+      if (approvalCount >= 2) {
+        poll.status = 'PUBLISHED';
+        await this.pollsRepository.save(poll);
+        // Award creator points
+        if (poll.creatorId) {
+          await this.pointsService.awardPoints(poll.creatorId, 100, 'POLL_PUBLISHED', poll.id, { pollId: poll.id });
+        }
+      }
+    }
+
+    return { success: true, status: poll.status };
+  }
+
+  async getModerationHistory(pollId: number) {
+    return this.moderationLogRepository.find({
+      where: { pollId },
+      relations: ['moderator'],
+      order: { createdAt: 'DESC' }
+    });
   }
 }

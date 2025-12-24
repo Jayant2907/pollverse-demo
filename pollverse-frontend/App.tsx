@@ -5,7 +5,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { PageState, Poll, User } from './types';
 import { MOCK_USER, CATEGORIES } from './constants';
 import {
-    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, XIcon, DuplicateIcon, TrophyIcon
+    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, XIcon, DuplicateIcon, TrophyIcon, ShieldCheck
+
 } from './components/Icons';
 import PollCard from './components/poll/PollCard';
 import PollCardSkeleton from './components/poll/PollCardSkeleton';
@@ -26,6 +27,8 @@ import UserPollsPage from './pages/UserPollsPage';
 import AdminPage from './pages/AdminPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import PointsLedgerPage from './pages/PointsLedgerPage';
+import ReviewQueuePage from './pages/ReviewQueuePage';
+
 
 function App() {
     const [page, setPage] = useState<PageState>({ name: 'feed', data: null });
@@ -57,7 +60,9 @@ function App() {
                 const user = JSON.parse(savedUser);
                 setCurrentUser(user);
                 setIsLoggedIn(true);
+                updateUserRank(user.id);
             } catch (e) {
+
                 console.error("Failed to parse saved user", e);
             }
         }
@@ -94,7 +99,25 @@ function App() {
         } else {
             setPage({ name: 'feed' });
         }
+        if (user) updateUserRank(user.id);
     };
+
+    const updateUserRank = async (userId: number | string) => {
+        try {
+            const res = await fetch(`http://localhost:3000/points/rank/${userId}`);
+            if (res.ok) {
+                const rankData = await res.json();
+                setCurrentUser(prev => {
+                    const updated = { ...prev, rank: rankData.rank, points: rankData.points };
+                    localStorage.setItem('pollverse_user', JSON.stringify(updated));
+                    return updated;
+                });
+            }
+        } catch (e) {
+            console.error("Failed to fetch rank", e);
+        }
+    };
+
 
     const handleLogout = () => {
         setIsLoggedIn(false);
@@ -105,28 +128,46 @@ function App() {
 
     const handleCreatePoll = async (newPollData: Partial<Poll>) => {
         try {
-            const newPoll = await PollService.createPoll({ ...newPollData, creator: currentUser });
-            setPolls(prevPolls => [newPoll, ...prevPolls]);
+            let newPoll: Poll;
+            const isUpdate = !!newPollData.id;
 
-            // Check if points were actually awarded (respects daily limit from backend)
-            const rankData = await fetch(`http://localhost:3000/points/rank/${currentUser.id}`).then(r => r.json());
-            const pointsAwarded = rankData && rankData.points > (currentUser.points || 0);
-
-            const updatedUser = {
-                ...currentUser,
-                points: rankData?.points || currentUser.points,
-                pollsCount: (currentUser.pollsCount || 0) + 1
-            };
-            setCurrentUser(updatedUser);
-            localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
-
-            if (pointsAwarded) {
-                showToast('Poll created! +50 Points');
+            if (isUpdate) {
+                newPoll = await PollService.updatePoll(newPollData.id!, { ...newPollData, creator: currentUser });
             } else {
-                showToast('Poll created!');
+                newPoll = await PollService.createPoll({ ...newPollData, creator: currentUser });
+            }
+
+            if (newPoll.status === 'PUBLISHED') {
+                if (isUpdate) {
+                    setPolls(prev => prev.map(p => p.id === newPoll.id ? newPoll : p));
+                    showToast('Poll updated!');
+                } else {
+                    setPolls(prevPolls => [newPoll, ...prevPolls]);
+                    showToast('Poll published! +50 Points');
+                }
+            } else {
+                // It's pending - don't add to main feed, but give feedback
+                if (isUpdate) {
+                    // Remove from local feed if it was there (though draft polls usually aren't)
+                    setPolls(prev => prev.filter(p => p.id !== newPoll.id));
+                }
+                showToast(isUpdate ? 'Update submitted for review!' : 'Poll submitted for review!');
+            }
+
+
+            if (newPoll.status === 'PUBLISHED') {
+                const rankData = await fetch(`http://localhost:3000/points/rank/${currentUser.id}`).then(r => r.json());
+                const updatedUser = {
+                    ...currentUser,
+                    points: rankData?.points || currentUser.points,
+                    pollsCount: isUpdate ? currentUser.pollsCount : (currentUser.pollsCount || 0) + 1
+                };
+                setCurrentUser(updatedUser);
+                localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
             }
 
             setPage({ name: 'feed' });
+
         } catch (e) {
             console.error('Failed to create poll:', e);
             showToast('Failed to create poll');
@@ -341,7 +382,10 @@ function App() {
                 return <LeaderboardPage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} />;
             case 'pointsLedger':
                 return <PointsLedgerPage onBack={() => handleNavigation('profile', currentUser)} onNavigate={handleNavigation} currentUser={currentUser} />;
+            case 'reviewQueue':
+                return <ReviewQueuePage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} showToast={showToast} />;
             default:
+
                 return null;
         }
     }
@@ -383,7 +427,14 @@ function App() {
                                     <span className="text-xs font-bold text-blue-600">Auto</span>
                                     <Toggle enabled={autoScrollEnabled} onChange={() => setAutoScrollEnabled(!autoScrollEnabled)} />
                                 </div>
+                                {isLoggedIn && (currentUser?.rank || 999) <= 4 && (
+                                    <button onClick={() => setPage({ name: 'reviewQueue' })} className="text-gray-500 hover:text-blue-600 transition-colors" title="Review Queue">
+                                        <ShieldCheck className="w-6 h-6" />
+                                    </button>
+                                )}
                                 <button onClick={() => setPage({ name: 'leaderboard' })} className="text-gray-500 hover:text-yellow-500" title="Leaderboard"><TrophyIcon /></button>
+
+
                                 <button onClick={() => setPage({ name: 'admin' })} className="text-gray-500 hover:text-blue-500" title="Admin/Seed"><DuplicateIcon /></button>
                                 <button onClick={() => handleNavigation('notifications')} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><BellIcon /></button>
                             </div>
