@@ -105,4 +105,15 @@ export class PollsController {
   seedComments(@Body() commentsData: { pollId: number; userId: number; text: string }[]) {
     return this.pollsService.seedComments(commentsData);
   }
+
+  // ============ MODERATION ============
+  @Post(':id/moderate')
+  moderatorAction(@Param('id') id: string, @Body() body: { moderatorId: number; action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'; comment?: string }) {
+    return this.pollsService.moderatorAction(+id, body.moderatorId, body.action, body.comment);
+  }
+
+  @Get(':id/moderation-history')
+  getModerationHistory(@Param('id') id: string) {
+    return this.pollsService.getModerationHistory(+id);
+  }
 }

@@ -28,4 +28,8 @@ export class User {
 
     @Column({ default: 0 })
     pollsCount: number;
+
+    @Column({ default: 1 })
+    trustLevel: number;
+
 }

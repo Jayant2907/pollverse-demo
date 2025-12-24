@@ -6,9 +6,10 @@ import confetti from 'canvas-confetti';
 interface SwipePollProps {
   poll: Poll;
   onVoteComplete: () => void;
+  readOnly?: boolean;
 }
 
-const SwipePoll: React.FC<SwipePollProps> = ({ poll, onVoteComplete }) => {
+const SwipePoll: React.FC<SwipePollProps> = ({ poll, onVoteComplete, readOnly }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
@@ -20,9 +21,10 @@ const SwipePoll: React.FC<SwipePollProps> = ({ poll, onVoteComplete }) => {
   };
 
   const handleSwipe = (direction: 'left' | 'right') => {
+    if (readOnly) return;
     vibrate();
     setLastDirection(direction);
-    
+
     // Accumulate score (Right = Yes = 1 point)
     if (direction === 'right') {
       setScore(prev => prev + 1);
@@ -53,7 +55,7 @@ const SwipePoll: React.FC<SwipePollProps> = ({ poll, onVoteComplete }) => {
   // Calculate Result
   const getResultTitle = () => {
     const ratio = score / poll.options.length;
-    return ratio > 0.5 
+    return ratio > 0.5
       ? poll.swipeResults?.highScoreTitle || "High Scorer!"
       : poll.swipeResults?.lowScoreTitle || "Low Scorer!";
   };
@@ -82,27 +84,30 @@ const SwipePoll: React.FC<SwipePollProps> = ({ poll, onVoteComplete }) => {
 
       {/* Card Stack Effect */}
       <div className="absolute w-full max-w-[85%] h-56 bg-gray-200 dark:bg-gray-700 rounded-xl transform translate-y-2 scale-95 -z-10"></div>
-      
+
       {/* Active Card */}
       <div className={`w-full max-w-[90%] h-56 bg-white dark:bg-gray-800 border-2 ${lastDirection === 'left' ? 'border-red-500 rotate-[-10deg] translate-x-[-50px] opacity-0' : lastDirection === 'right' ? 'border-green-500 rotate-[10deg] translate-x-[50px] opacity-0' : 'border-gray-200 dark:border-gray-600'} rounded-xl shadow-lg flex items-center justify-center p-6 text-center transition-all duration-300`}>
         <span className="text-xl font-bold text-gray-800 dark:text-gray-100">{currentOption.text}</span>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center space-x-8 mt-6">
-        <button 
-          onClick={() => handleSwipe('left')}
-          className="w-14 h-14 rounded-full bg-white dark:bg-gray-800 text-red-500 shadow-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
-        >
-          <XIcon />
-        </button>
-        <button 
-          onClick={() => handleSwipe('right')}
-          className="w-14 h-14 rounded-full bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
-        >
-          <HeartIcon />
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center space-x-8 mt-6">
+          <button
+            onClick={() => handleSwipe('left')}
+            className="w-14 h-14 rounded-full bg-white dark:bg-gray-800 text-red-500 shadow-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+          >
+            <XIcon />
+          </button>
+          <button
+            onClick={() => handleSwipe('right')}
+            className="w-14 h-14 rounded-full bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+          >
+            <HeartIcon />
+          </button>
+        </div>
+      )}
+
     </div>
   );
 };

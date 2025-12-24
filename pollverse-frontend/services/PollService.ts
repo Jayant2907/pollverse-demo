@@ -66,6 +66,27 @@ export const PollService = {
         }
     },
 
+    updatePoll: async (id: number | string, pollData: Partial<Poll>): Promise<Poll> => {
+        try {
+            const { creator, ...rest } = pollData as any;
+            const backendData = {
+                ...rest,
+                creatorId: creator?.id || 1,
+            };
+
+            const response = await fetch(`${API_URL}/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(backendData)
+            });
+            const data = await response.json();
+            return mapPoll(data);
+        } catch (error) {
+            console.error("Failed to update poll:", error);
+            throw error;
+        }
+    },
+
     getPoll: async (id: number): Promise<Poll | null> => {
         try {
             const response = await fetch(`${API_URL}/${id}`);
@@ -174,6 +195,32 @@ export const PollService = {
             return response.json();
         } catch (error) {
             console.error(`Failed to get ${type}rs:`, error);
+            return [];
+        }
+    },
+
+    // ============ MODERATION ============
+    moderatePoll: async (pollId: number, moderatorId: number, action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', comment?: string) => {
+        try {
+            const response = await fetch(`${API_URL}/${pollId}/moderate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ moderatorId, action, comment })
+            });
+            return response.json();
+        } catch (error) {
+            console.error("Failed to moderate poll:", error);
+            throw error;
+        }
+    },
+
+    getModerationHistory: async (pollId: number) => {
+        try {
+            const response = await fetch(`${API_URL}/${pollId}/moderation-history`);
+            if (!response.ok) return [];
+            return response.json();
+        } catch (error) {
+            console.error("Failed to fetch moderation history:", error);
             return [];
         }
     },

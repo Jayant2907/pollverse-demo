@@ -1,6 +1,8 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import type { Comment } from './comment.entity';
+import { ModerationLog } from './moderation-log.entity';
+
 
 @Entity()
 export class Poll {
@@ -38,6 +40,13 @@ export class Poll {
 
     @Column({ default: 'multiple_choice' })
     pollType: string;
+
+    @Column({ default: 'PENDING' }) // PENDING, PUBLISHED, REJECTED, CHANGES_REQUESTED
+    status: string;
+
+    @OneToMany(() => ModerationLog, (log) => log.poll, { cascade: true })
+    moderationLogs: ModerationLog[];
+
 
     @Column('simple-json', { nullable: true })
     votes: Record<string, number>;
