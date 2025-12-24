@@ -6,6 +6,8 @@ import { Interaction } from './entities/interaction.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
+import { PointsService } from '../points/points.service';
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -13,6 +15,7 @@ export class UsersService {
     private usersRepository: Repository<User>,
     @InjectRepository(Interaction)
     private interactionRepository: Repository<Interaction>,
+    private readonly pointsService: PointsService,
   ) { }
 
   async seed(usersData: any[]) {
@@ -86,6 +89,9 @@ export class UsersService {
         following.push(String(targetUserId));
         user.following = following;
         await this.usersRepository.save(user);
+
+        // Award points for following
+        await this.pointsService.awardPoints(userId, 10, 'follow', { targetUserId });
       }
 
       // Update followers for target user

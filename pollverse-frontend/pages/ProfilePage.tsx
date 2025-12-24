@@ -21,6 +21,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
     const userPolls = allPolls.filter(p => p.creator?.id === user.id);
     const votedPolls = allPolls.filter(p => currentUser.pollsVotedOn.some(id => String(id) === String(p.id)));
 
+    // Level Calculation
+    const points = user.points || 0;
+    const getLevel = (pts: number) => {
+        if (pts < 1000) return 1 + Math.floor(pts / 111);
+        return 10 + Math.floor((pts - 1000) / 225);
+    };
+    const level = getLevel(points);
+    const nextLevelPoints = level < 10 ? level * 111 : 1000 + (level - 9) * 225; // Approx
+    const prevLevelPoints = level === 1 ? 0 : (level < 11 ? (level - 1) * 111 : 1000 + (level - 10) * 225);
+    const progress = Math.min(100, Math.max(0, ((points - prevLevelPoints) / (nextLevelPoints - prevLevelPoints)) * 100));
+
     const [modalMode, setModalMode] = useState<'followers' | 'following' | null>(null);
     const [modalUsers, setModalUsers] = useState<User[]>([]);
     const [isLoadingModal, setIsLoadingModal] = useState(false);
@@ -66,6 +77,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                             {isFollowing ? 'Unfollow' : 'Follow'}
                         </button>
                     )}
+                    <div className="mt-2 w-full max-w-xs">
+                        <div className="flex justify-between text-xs font-bold text-gray-500 mb-1">
+                            <span>Lvl {level}</span>
+                            <span>{Math.floor(progress)}%</span>
+                            <span>Lvl {level + 1}</span>
+                        </div>
+                        <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-blue-400 to-purple-500" style={{ width: `${progress}%` }}></div>
+                        </div>
+                    </div>
                     <div className="grid grid-cols-4 gap-2 mt-6 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 py-3 px-2 rounded-xl w-full shadow-sm">
                         <div className="text-center">
                             <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{user.points?.toLocaleString() || 0}</p>

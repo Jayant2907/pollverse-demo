@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 interface SurveyPageProps {
     poll: Poll;
     onBack: () => void;
-    onComplete: (pollId: string | number) => void;
+    onComplete: (pollId: string | number, pointsEarned?: number) => void;
 }
 
 const SurveyPage: React.FC<SurveyPageProps> = ({ poll, onBack, onComplete }) => {
@@ -63,7 +63,7 @@ const SurveyPage: React.FC<SurveyPageProps> = ({ poll, onBack, onComplete }) => 
             colors: colors
         });
         setTimeout(() => {
-            onComplete(poll.id);
+            onComplete(poll.id, 20); // Hardcoded survey points (match backend)
             onBack();
         }, 1500);
     };
@@ -126,13 +126,13 @@ const SurveyPage: React.FC<SurveyPageProps> = ({ poll, onBack, onComplete }) => 
                                 key={option.id}
                                 onClick={() => handleOptionToggle(option.id)}
                                 className={`w-full flex items-center p-4 rounded-xl border-2 transition-all duration-200 text-left group ${isSelected
-                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10'
-                                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10'
+                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
                                     }`}
                             >
                                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${isSelected
-                                        ? 'border-blue-500 bg-blue-500'
-                                        : 'border-gray-300 dark:border-gray-500 group-hover:border-gray-400'
+                                    ? 'border-blue-500 bg-blue-500'
+                                    : 'border-gray-300 dark:border-gray-500 group-hover:border-gray-400'
                                     }`}>
                                     {isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
                                 </div>
@@ -151,8 +151,8 @@ const SurveyPage: React.FC<SurveyPageProps> = ({ poll, onBack, onComplete }) => 
                     onClick={handleNext}
                     disabled={isCurrentRequired && !hasAnsweredCurrent}
                     className={`w-full py-4 rounded-full font-bold text-lg transition-all shadow-lg ${isCurrentRequired && !hasAnsweredCurrent
-                            ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-500/30'
+                        ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-500/30'
                         }`}
                 >
                     {currentStep === totalSteps - 1 ? 'Submit' : 'Next'}
