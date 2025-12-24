@@ -5,7 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { PageState, Poll, User } from './types';
 import { MOCK_USER, CATEGORIES } from './constants';
 import {
-    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, XIcon, DuplicateIcon
+    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, XIcon, DuplicateIcon, TrophyIcon
 } from './components/Icons';
 import PollCard from './components/poll/PollCard';
 import PollCardSkeleton from './components/poll/PollCardSkeleton';
@@ -24,6 +24,7 @@ import SettingsPage from './pages/SettingsPage';
 import SurveyPage from './pages/SurveyPage';
 import UserPollsPage from './pages/UserPollsPage';
 import AdminPage from './pages/AdminPage';
+import LeaderboardPage from './pages/LeaderboardPage';
 
 function App() {
     const [page, setPage] = useState<PageState>({ name: 'feed', data: null });
@@ -104,6 +105,16 @@ function App() {
     const handleCreatePoll = (newPollData: Partial<Poll>) => {
         PollService.createPoll({ ...newPollData, creator: currentUser }).then(newPoll => {
             setPolls(prevPolls => [newPoll, ...prevPolls]);
+
+            const updatedUser = {
+                ...currentUser,
+                points: (currentUser.points || 0) + 50,
+                pollsCount: (currentUser.pollsCount || 0) + 1
+            };
+            setCurrentUser(updatedUser);
+            localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
+            showToast('Poll created! +50 Points');
+
             setPage({ name: 'feed' });
         });
     };
@@ -138,9 +149,25 @@ function App() {
         localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
     };
 
-    const handleVote = (pollId: number | string) => {
-        if (!currentUser.pollsVotedOn.includes(pollId)) {
-            setCurrentUser(prev => ({ ...prev, pollsVotedOn: [...prev.pollsVotedOn, pollId] }));
+    const handleVote = (pollId: number | string, pointsEarned?: number) => {
+        const hasVoted = currentUser.pollsVotedOn.some(id => String(id) === String(pollId));
+        if (!hasVoted) {
+            const updatedUser = {
+                ...currentUser,
+                pollsVotedOn: [...currentUser.pollsVotedOn, pollId],
+                points: (currentUser.points || 0) + (pointsEarned || 0)
+            };
+            setCurrentUser(updatedUser);
+            localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
+
+            // Sync with profile page if it's the current user's profile
+            if (page.name === 'profile' && page.data && String(page.data.id) === String(currentUser.id)) {
+                setPage(prev => ({ ...prev, data: { ...prev.data, points: updatedUser.points } }));
+            }
+
+            if (pointsEarned && pointsEarned > 0) {
+                showToast(`+${pointsEarned} Points!`);
+            }
         }
     };
 
@@ -176,7 +203,11 @@ function App() {
                 const following = prev.following.includes(String(targetId)) || prev.following.includes(targetId)
                     ? prev.following.filter(id => String(id) !== String(targetId))
                     : [...prev.following, String(targetId)];
-                const updated = { ...prev, following };
+                const updated = {
+                    ...prev,
+                    following,
+                    points: (prev.points || 0) + (isFollowing ? 0 : 10) // AWARD points for follow
+                };
                 localStorage.setItem('pollverse_user', JSON.stringify(updated));
                 return updated;
             });
@@ -193,7 +224,12 @@ function App() {
                     }
                 }));
             }
-            showToast(isFollowing ? 'Unfollowed successfully' : 'Followed successfully');
+
+            if (isFollowing) {
+                showToast('Unfollowed successfully');
+            } else {
+                showToast('Followed successfully! +10 Points');
+            }
         } catch (e) {
             console.error("Failed to toggle follow:", e);
             showToast('Failed to update follow status');
@@ -247,7 +283,24 @@ function App() {
             case 'editProfile':
                 return <EditProfilePage onBack={() => handleNavigation('profile', currentUser)} currentUser={currentUser} onUpdateUser={handleUpdateUser} />;
             case 'survey':
-                return <SurveyPage poll={page.data} onBack={() => setPage({ name: 'feed' })} onComplete={handleVote} />;
+                return (
+                    <SurveyPage
+                        poll={page.data}
+                        onBack={() => setPage({ name: 'feed' })}
+                        onComplete={async (pid, pts) => {
+                            if (isLoggedIn) {
+                                try {
+                                    const result = await PollService.vote(Number(pid), Number(currentUser.id), 'completed');
+                                    handleVote(pid, result.pointsEarned || pts);
+                                } catch (e) {
+                                    handleVote(pid, pts);
+                                }
+                            } else {
+                                handleVote(pid, pts);
+                            }
+                        }}
+                    />
+                );
             case 'userPolls':
                 return (
                     <UserPollsPage
@@ -263,6 +316,8 @@ function App() {
                 );
             case 'admin':
                 return <AdminPage onBack={() => setPage({ name: 'feed' })} />;
+            case 'leaderboard':
+                return <LeaderboardPage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} />;
             default:
                 return null;
         }
@@ -305,85 +360,86 @@ function App() {
                                     <span className="text-xs font-bold text-blue-600">Auto</span>
                                     <Toggle enabled={autoScrollEnabled} onChange={() => setAutoScrollEnabled(!autoScrollEnabled)} />
                                 </div>
+                                <button onClick={() => setPage({ name: 'leaderboard' })} className="text-gray-500 hover:text-yellow-500" title="Leaderboard"><TrophyIcon /></button>
                                 <button onClick={() => setPage({ name: 'admin' })} className="text-gray-500 hover:text-blue-500" title="Admin/Seed"><DuplicateIcon /></button>
                                 <button onClick={() => handleNavigation('notifications')} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><BellIcon /></button>
                             </div>
                         </div>
-
-                        {searchActive ?
-                            <div className="flex-shrink-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 flex flex-col animate-fade-in relative z-10 transition-all duration-300">
-                                <div className="flex items-center space-x-2 p-2">
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Search polls..."
-                                        className="w-full bg-gray-100 dark:bg-gray-800 border-transparent rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
-                                        autoFocus
-                                    />
-                                    <button onClick={() => { setSearchActive(false); setSearchQuery(''); }} className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><XIcon /></button>
-                                </div>
-
-                                {searchQuery.trim() === '' && topHashtags.length > 0 && (
-                                    <div className="px-4 pb-3 animate-fade-in">
-                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Trending Topics</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {topHashtags.map(tag => (
-                                                <button
-                                                    key={tag}
-                                                    onClick={() => setSearchQuery(tag)}
-                                                    className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm rounded-full font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                                                >
-                                                    #{tag}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div> :
-                            <div className="flex-shrink-0 w-full overflow-x-auto py-3 px-4 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
-                                <div className="flex space-x-3">{CATEGORIES.map(category => (<button key={category} onClick={() => setActiveCategory(category)} className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${activeCategory === category ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{category}</button>))}</div>
-                            </div>
-                        }
-
-                        <div ref={scrollContainerRef} className="flex-grow w-full overflow-y-auto snap-y snap-mandatory scroll-smooth">
-                            {isLoading ? (
-                                <>
-                                    <PollCardSkeleton />
-                                    <PollCardSkeleton />
-                                </>
-                            ) : (
-                                filteredPolls.map(poll => (
-                                    <PollCard
-                                        key={poll.id}
-                                        poll={poll}
-                                        onNavigate={handleNavigation}
-                                        isLoggedIn={isLoggedIn}
-                                        requireLogin={requireLogin}
-                                        showToast={showToast}
-                                        onVote={handleVote}
-                                        onVoteComplete={handleVoteComplete}
-                                        currentUser={currentUser}
-                                    />
-                                ))
-                            )}
-                        </div>
-
-                        <nav className="flex-shrink-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 flex justify-around items-center p-2">
-                            <button onClick={() => setPage({ name: 'feed' })} className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white ${page.name === 'feed' ? '!text-blue-600 dark:!text-blue-500' : ''}`}><HomeIcon active={page.name === 'feed'} /></button>
-                            <button onClick={() => handleNavigation('addPoll')} className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg shadow-blue-500/30 -mt-10 border-4 border-white dark:border-black hover:scale-105 transition-transform"><PlusIcon /></button>
-                            <button onClick={() => handleNavigation('profile', currentUser)} className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white ${page.name === 'profile' ? '!text-blue-600 dark:!text-blue-500' : ''}`}><UserIcon active={page.name === 'profile'} /></button>
-                        </nav>
                     </div>
 
-                    {/* Detail Page Overlay */}
-                    {isDetailPage && (
-                        <div className="absolute top-0 left-0 h-full w-full bg-white dark:bg-black z-20">
-                            {renderDetailContent()}
+                    {searchActive ?
+                        <div className="flex-shrink-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 flex flex-col animate-fade-in relative z-10 transition-all duration-300">
+                            <div className="flex items-center space-x-2 p-2">
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search polls..."
+                                    className="w-full bg-gray-100 dark:bg-gray-800 border-transparent rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                    autoFocus
+                                />
+                                <button onClick={() => { setSearchActive(false); setSearchQuery(''); }} className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><XIcon /></button>
+                            </div>
+
+                            {searchQuery.trim() === '' && topHashtags.length > 0 && (
+                                <div className="px-4 pb-3 animate-fade-in">
+                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Trending Topics</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {topHashtags.map(tag => (
+                                            <button
+                                                key={tag}
+                                                onClick={() => setSearchQuery(tag)}
+                                                className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm rounded-full font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                                            >
+                                                #{tag}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div> :
+                        <div className="flex-shrink-0 w-full overflow-x-auto py-3 px-4 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
+                            <div className="flex space-x-3">{CATEGORIES.map(category => (<button key={category} onClick={() => setActiveCategory(category)} className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${activeCategory === category ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{category}</button>))}</div>
                         </div>
-                    )}
-                    <Toast message={toast.message} show={toast.show} />
+                    }
+
+                    <div ref={scrollContainerRef} className="flex-grow w-full overflow-y-auto snap-y snap-mandatory scroll-smooth">
+                        {isLoading ? (
+                            <>
+                                <PollCardSkeleton />
+                                <PollCardSkeleton />
+                            </>
+                        ) : (
+                            filteredPolls.map(poll => (
+                                <PollCard
+                                    key={poll.id}
+                                    poll={poll}
+                                    onNavigate={handleNavigation}
+                                    isLoggedIn={isLoggedIn}
+                                    requireLogin={requireLogin}
+                                    showToast={showToast}
+                                    onVote={(pid, pts) => handleVote(pid, pts)}
+                                    onVoteComplete={handleVoteComplete}
+                                    currentUser={currentUser}
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    <nav className="flex-shrink-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 flex justify-around items-center p-2">
+                        <button onClick={() => setPage({ name: 'feed' })} className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white ${page.name === 'feed' ? '!text-blue-600 dark:!text-blue-500' : ''}`}><HomeIcon active={page.name === 'feed'} /></button>
+                        <button onClick={() => handleNavigation('addPoll')} className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg shadow-blue-500/30 -mt-10 border-4 border-white dark:border-black hover:scale-105 transition-transform"><PlusIcon /></button>
+                        <button onClick={() => handleNavigation('profile', currentUser)} className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white ${page.name === 'profile' ? '!text-blue-600 dark:!text-blue-500' : ''}`}><UserIcon active={page.name === 'profile'} /></button>
+                    </nav>
                 </div>
+
+                {/* Detail Page Overlay */}
+                {isDetailPage && (
+                    <div className="absolute top-0 left-0 h-full w-full bg-white dark:bg-black z-20">
+                        {renderDetailContent()}
+                    </div>
+                )}
+                <Toast message={toast.message} show={toast.show} />
             </div>
         </ThemeProvider>
     );

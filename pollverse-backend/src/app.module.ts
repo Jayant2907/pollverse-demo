@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { PollsModule } from './polls/polls.module';
 import { UsersModule } from './users/users.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PointsModule } from './points/points.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     PollsModule,
     UsersModule,
     NotificationsModule,
+    PointsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -9,6 +9,8 @@ import { Vote } from './entities/vote.entity';
 import { Interaction } from '../users/entities/interaction.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 
+import { PointsService } from '../points/points.service';
+
 @Injectable()
 export class PollsService {
   constructor(
@@ -21,6 +23,7 @@ export class PollsService {
     @InjectRepository(Interaction)
     private interactionRepository: Repository<Interaction>,
     private readonly notificationsService: NotificationsService,
+    private readonly pointsService: PointsService,
   ) { }
 
   async create(createPollDto: CreatePollDto) {
@@ -34,6 +37,11 @@ export class PollsService {
     // Update user's pollsCount
     if (savedPoll.creatorId) {
       await this.pollsRepository.manager.getRepository('User').increment({ id: savedPoll.creatorId }, 'pollsCount', 1);
+    }
+
+    // Award Points for Creation
+    if (savedPoll.creatorId) {
+      await this.pointsService.awardPoints(savedPoll.creatorId, 50, 'create_poll', { pollId: savedPoll.id });
     }
 
     return savedPoll;
@@ -208,7 +216,13 @@ export class PollsService {
       } catch (e) { console.error("Notification failed", e); }
     }
 
-    return { success: true, message: 'Vote recorded', votes: poll.votes };
+    // Award Points for Voting
+    let points = 5;
+    if (poll.pollType === 'swipe') points = 10;
+    if (poll.pollType === 'survey') points = 20;
+    const ptResult = await this.pointsService.awardPoints(userId, points, 'vote', { pollId });
+
+    return { success: true, message: 'Vote recorded', votes: poll.votes, pointsEarned: ptResult.success ? points : 0 };
   }
 
   async getUserVote(pollId: number, userId: number) {
@@ -255,6 +269,12 @@ export class PollsService {
       interaction = this.interactionRepository.create({ pollId, userId, type: 'like' });
       await this.interactionRepository.save(interaction);
       poll.likes = (poll.likes || 0) + 1;
+      // Check for Trending Status (50 Likes)
+      if ((poll.likes || 0) + 1 === 50 && poll.creatorId) {
+        await this.pointsService.awardPoints(poll.creatorId, 500, 'trending_bonus', { pollId: poll.id });
+        // Notify user about trending status?
+      }
+
       await this.pollsRepository.save(poll);
 
       if (poll.creatorId && poll.creatorId !== userId) {
@@ -334,6 +354,10 @@ export class PollsService {
     if (comment) {
       comment.likes = (comment.likes || 0) + 1;
       await this.commentRepository.save(comment);
+      // Award points for comment like
+      if (comment.userId) {
+        await this.pointsService.awardPoints(comment.userId, 2, 'comment_like', { commentId, pollId: comment.pollId });
+      }
       return { success: true, likes: comment.likes };
     }
     return { success: false };

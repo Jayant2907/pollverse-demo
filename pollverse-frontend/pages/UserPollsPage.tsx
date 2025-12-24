@@ -12,7 +12,7 @@ interface UserPollsPageProps {
     onNavigate: (name: string, data?: any) => void;
     requireLogin: (action: () => void) => void;
     showToast: (message: string) => void;
-    onVote: (pollId: number | string) => void;
+    onVote: (pollId: number | string, pointsEarned?: number) => void;
 }
 
 const UserPollsPage: React.FC<UserPollsPageProps> = ({

@@ -8,9 +8,10 @@ import { Vote } from './entities/vote.entity';
 
 import { Interaction } from '../users/entities/interaction.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PointsModule } from '../points/points.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Poll, Comment, Vote, Interaction]), NotificationsModule],
+  imports: [TypeOrmModule.forFeature([Poll, Comment, Vote, Interaction]), NotificationsModule, PointsModule],
   controllers: [PollsController],
   providers: [PollsService],
 })

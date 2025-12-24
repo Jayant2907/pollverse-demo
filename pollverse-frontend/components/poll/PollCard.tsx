@@ -12,7 +12,7 @@ interface PollCardProps {
     isLoggedIn: boolean;
     requireLogin: (action: () => void) => void;
     showToast: (message: string) => void;
-    onVote: (pollId: number | string) => void;
+    onVote: (pollId: number | string, pointsEarned?: number) => void;
     onVoteComplete?: () => void;
     currentUser: User;
 }
@@ -142,7 +142,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                 const result = await PollService.vote(Number(poll.id), Number(currentUser.id), String(optionId));
 
                 if (result.success) {
-                    onVote(poll.id); // Notify App to update user stats
+                    onVote(poll.id, result.pointsEarned); // Notify App to update user stats
                     if (onVoteComplete) {
                         onVoteComplete();
                     }
@@ -221,8 +221,18 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                 return (
                     <SwipePoll
                         poll={poll}
-                        onVoteComplete={() => {
-                            onVote(poll.id);
+                        onVoteComplete={async () => {
+                            if (isLoggedIn) {
+                                try {
+                                    const PollService = (await import('../../services/PollService')).PollService;
+                                    const result = await PollService.vote(Number(poll.id), Number(currentUser.id), 'completed');
+                                    onVote(poll.id, result.pointsEarned || 10);
+                                } catch (e) {
+                                    onVote(poll.id, 10);
+                                }
+                            } else {
+                                onVote(poll.id, 10);
+                            }
                             if (onVoteComplete) onVoteComplete();
                         }}
                     />
