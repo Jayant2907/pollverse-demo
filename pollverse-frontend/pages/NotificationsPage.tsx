@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeftIcon } from '../components/Icons';
 import { User } from '../types';
 import { NotificationService } from '../services/NotificationService';
-import { timeAgo } from '../constants'; // Assumed exists or I can just use locale string
+
 
 interface NotificationsPageProps {
     onBack: () => void;

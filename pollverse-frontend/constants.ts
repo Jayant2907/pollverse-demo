@@ -67,6 +67,8 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     likes: 45,
     dislikes: 1,
     timestamp: new Date(now.getTime() - 30 * 60000),
+    createdAt: new Date(now.getTime() - 30 * 60000),
+    status: 'PUBLISHED',
     expiresAt: new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000) // Expires in 6 days
   },
   {
@@ -91,7 +93,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 0,
     category: 'Business',
     tags: ['business', 'marketing', 'app'],
-    timestamp: new Date(now.getTime() - 10 * 60000)
+    timestamp: new Date(now.getTime() - 10 * 60000),
+    createdAt: new Date(now.getTime() - 10 * 60000),
+    status: 'PUBLISHED',
   },
   {
     id: 1022,
@@ -121,7 +125,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 2,
     category: 'Trending',
     tags: ['socialmedia', 'community', 'apps'],
-    timestamp: new Date(now.getTime() - 2 * 60000)
+    timestamp: new Date(now.getTime() - 2 * 60000),
+    createdAt: new Date(now.getTime() - 2 * 60000),
+    status: 'PUBLISHED',
   },
   {
     id: 1,
@@ -139,7 +145,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 50,
     category: 'Sports',
     tags: ['cricket', 'worldcup', 'sports'],
-    timestamp: new Date(now.getTime() - 2 * 60 * 60000)
+    timestamp: new Date(now.getTime() - 2 * 60 * 60000),
+    createdAt: new Date(now.getTime() - 2 * 60 * 60000),
+    status: 'PUBLISHED',
   },
   {
     id: 1021,
@@ -164,7 +172,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 5,
     category: 'Trending',
     tags: ['product', 'features', 'roadmap'],
-    timestamp: new Date(now.getTime() - 60 * 60000)
+    timestamp: new Date(now.getTime() - 60 * 60000),
+    createdAt: new Date(now.getTime() - 60 * 60000),
+    status: 'PUBLISHED',
   },
   {
     id: 99,
@@ -180,6 +190,8 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     category: 'Trending',
     tags: ['election', 'politics'],
     timestamp: new Date(now.getTime() - 48 * 60 * 60000),
+    createdAt: new Date(now.getTime() - 48 * 60 * 60000),
+    status: 'PUBLISHED',
     expiresAt: new Date(now.getTime() - 1 * 60 * 60000) // Expired 1 hour ago
   },
   {
@@ -196,6 +208,8 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     category: 'Trending',
     tags: ['limited', 'exclusive'],
     timestamp: new Date(now.getTime() - 30 * 60000),
+    createdAt: new Date(now.getTime() - 30 * 60000),
+    status: 'PUBLISHED',
     maxVotes: 50 // Reached limit
   },
   {
@@ -210,7 +224,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 10,
     category: 'Food',
     tags: ['pizza', 'foodranking', 'toppings'],
-    timestamp: new Date(now.getTime() - 5 * 60 * 60000)
+    timestamp: new Date(now.getTime() - 5 * 60 * 60000),
+    createdAt: new Date(now.getTime() - 5 * 60 * 60000),
+    status: 'PUBLISHED',
   },
   {
     id: 3,
@@ -224,7 +240,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 12,
     category: 'Movies',
     tags: ['movies', 'scifi', 'fantasy'],
-    timestamp: new Date(now.getTime() - 8 * 60 * 60000)
+    timestamp: new Date(now.getTime() - 8 * 60 * 60000),
+    createdAt: new Date(now.getTime() - 8 * 60 * 60000),
+    status: 'PUBLISHED',
   },
   {
     id: 5,
@@ -238,7 +256,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 5,
     category: 'Travel',
     tags: ['travel', 'vacation', 'summer'],
-    timestamp: new Date(now.getTime() - 12 * 60 * 60000)
+    timestamp: new Date(now.getTime() - 12 * 60 * 60000),
+    createdAt: new Date(now.getTime() - 12 * 60 * 60000),
+    status: 'PUBLISHED',
   },
   {
     id: 2,
@@ -253,7 +273,9 @@ export const INITIAL_MOCK_POLLS: Poll[] = [
     dislikes: 300,
     category: 'Technology',
     tags: ['tech', 'privacy', 'ios', 'android'],
-    timestamp: new Date(now.getTime() - 24 * 60 * 60000)
+    timestamp: new Date(now.getTime() - 24 * 60 * 60000),
+    createdAt: new Date(now.getTime() - 24 * 60 * 60000),
+    status: 'PUBLISHED',
   },
 ];
 
