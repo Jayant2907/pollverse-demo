@@ -201,7 +201,7 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
                 for (let j = 0; j < numComments; j++) {
                     commentsToSeed.push({
                         pollId: Number(poll.id),
-                        userId: (users && users.length) ? users[Math.floor(Math.random() * users.length)].id : 1,
+                        userId: (users && users.length) ? Number(users[Math.floor(Math.random() * users.length)].id) : 1,
                         text: SAMPLE_COMMENTS[Math.floor(Math.random() * SAMPLE_COMMENTS.length)]
                     });
                 }
@@ -263,7 +263,7 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
                 for (let j = 0; j < numComments; j++) {
                     commentsToSeed.push({
                         pollId: Number(poll.id),
-                        userId: usersInfo[Math.floor(Math.random() * usersInfo.length)].id,
+                        userId: Number(usersInfo[Math.floor(Math.random() * usersInfo.length)].id),
                         text: SAMPLE_COMMENTS[Math.floor(Math.random() * SAMPLE_COMMENTS.length)]
                     });
                 }
