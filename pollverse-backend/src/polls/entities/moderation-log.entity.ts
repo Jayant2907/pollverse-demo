@@ -22,7 +22,7 @@ export class ModerationLog {
     moderator: User;
 
     @Column()
-    action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES';
+    action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'RESUBMITTED';
 
     @Column({ nullable: true })
     comment: string;

@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Poll, PollOption } from '../types';
 import { CATEGORIES } from '../constants';
-import { ChevronLeftIcon, ListIcon, ImageIcon, RankIcon, SliderIcon, HeartIcon, ChartBarIcon } from '../components/Icons';
+import { ChevronLeftIcon, ListIcon, ImageIcon, RankIcon, SliderIcon, HeartIcon, ChartBarIcon, ShieldCheck } from '../components/Icons';
 
 interface AddPollPageProps {
     onBack: () => void;
     onPollCreate: (pollData: Partial<Poll>) => void;
     initialData?: Poll;
+    loading?: boolean;
 }
 
-const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initialData }) => {
+const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initialData, loading }) => {
     const [pollType, setPollType] = useState<Poll['pollType']>(initialData?.pollType || 'multiple_choice');
     const [question, setQuestion] = useState(initialData?.question || '');
     const [description, setDescription] = useState(initialData?.description || '');
@@ -21,12 +22,22 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
             { id: 2, text: '' },
         ]);
 
+    // Use default petition text if type is petition
+    useEffect(() => {
+        if (pollType === 'petition' && (!initialData || !initialData.options)) {
+            setOptions([{ id: 1, text: 'Sign Petition' }]);
+        } else if (pollType !== 'petition' && options.length === 1 && options[0].text === 'Sign Petition') {
+            setOptions([{ id: 1, text: '' }, { id: 2, text: '' }]);
+        }
+    }, [pollType]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Swipe result config
     const [swipeResults, setSwipeResults] = useState(initialData?.swipeResults || { lowScoreTitle: 'You are Basic', highScoreTitle: 'You are Unique' });
 
     // Advanced Config
     const [expiresAt, setExpiresAt] = useState('');
     const [maxVotes, setMaxVotes] = useState('');
+    const [goalThreshold, setGoalThreshold] = useState(initialData?.goal_threshold?.toString() || '');
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     const pollTypes = [
@@ -36,6 +47,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
         { id: 'ranking', name: 'Ranking', icon: <RankIcon /> },
         { id: 'slider', name: 'Slider', icon: <SliderIcon /> },
         { id: 'swipe', name: 'Swipe', icon: <HeartIcon /> },
+        { id: 'petition', name: 'Petition', icon: <ShieldCheck /> },
     ];
 
     const handleAddOption = () => {
@@ -59,6 +71,9 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
         if (pollType === 'slider') {
             return options.slice(0, 2).every(opt => opt.text.trim());
         }
+        if (pollType === 'petition') {
+            return !!goalThreshold && parseInt(goalThreshold) > 0;
+        }
         return options.every(opt => opt.text.trim());
     };
 
@@ -77,6 +92,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
             ...(pollType === 'swipe' ? { swipeResults } : {}),
             expiresAt: expiresAt ? new Date(expiresAt) : undefined,
             maxVotes: maxVotes ? parseInt(maxVotes) : undefined,
+            goal_threshold: (pollType === 'petition' && goalThreshold) ? parseInt(goalThreshold) : undefined,
             id: initialData?.id,
         };
 
@@ -121,6 +137,25 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
                         />
                     </div>
                 );
+            case 'petition':
+                return (
+                    <div className="mb-4">
+                        <InputLabel>Goal Threshold (Signatures)</InputLabel>
+                        <input
+                            type="number"
+                            min="1"
+                            placeholder="e.g. 100"
+                            value={goalThreshold}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val && parseInt(val) < 1) setGoalThreshold('1');
+                                else setGoalThreshold(val);
+                            }}
+                            className="w-full bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-2">Petitions have a single "Sign" action. No options needed.</p>
+                    </div>
+                );
             case 'multiple_choice':
             case 'ranking':
             case 'swipe':
@@ -158,7 +193,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
         <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in">
             <header className="flex-shrink-0 flex items-center p-4 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white/80 dark:bg-black/80 backdrop-blur-sm z-10">
                 <button onClick={onBack} className="text-blue-600 p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronLeftIcon /></button>
-                <h1 className="text-xl font-bold mx-auto text-gray-900 dark:text-gray-100">{initialData ? 'Edit' : 'Create'} Poll</h1>
+                <h1 className="text-xl font-bold mx-auto text-gray-900 dark:text-gray-100">{initialData?.id ? 'Edit' : 'Create'} Poll</h1>
                 <div className="w-8"></div>
             </header>
 
@@ -260,9 +295,14 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
                                 <InputLabel>Maximum Votes</InputLabel>
                                 <input
                                     type="number"
+                                    min="1"
                                     placeholder="e.g. 100"
                                     value={maxVotes}
-                                    onChange={(e) => setMaxVotes(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val && parseInt(val) < 1) setMaxVotes('1');
+                                        else setMaxVotes(val);
+                                    }}
                                     className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">Poll will close once it reaches this many votes.</p>
@@ -273,8 +313,15 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
             </main>
 
             <footer className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-                <button onClick={handleSubmit} disabled={!isFormValid()} className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors">
-                    {initialData ? 'Update & Resubmit' : 'Post Poll'}
+                <button onClick={handleSubmit} disabled={!isFormValid() || loading} className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+                    {loading ? (
+                        <>
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                            {initialData?.id ? 'Updating...' : 'Posting...'}
+                        </>
+                    ) : (
+                        initialData?.id ? 'Update & Resubmit' : 'Post Poll'
+                    )}
                 </button>
             </footer>
         </div>

@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Poll, User } from '../../types';
-import { getTotalVotes, timeAgo } from '../../constants';
+import { getTotalVotes } from '../../constants';
 import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon, DuplicateIcon, XIcon, ChevronLeftIcon, ShieldCheck } from '../Icons';
 import SvgPlaceholder from '../ui/SvgPlaceholder';
 import SwipePoll from './SwipePoll';
@@ -14,19 +14,20 @@ interface PollCardProps {
     isLoggedIn: boolean;
     requireLogin: (action: () => void) => void;
     showToast: (message: string) => void;
-    onVote: (pollId: number | string, pointsEarned?: number) => void;
+    onVote: (pollId: number | string, pointsEarned?: number, updatedVotes?: Record<string | number, number>) => void;
     onVoteComplete?: () => void;
     currentUser: User;
     readOnly?: boolean;
+    setGlobalLoading?: (loading: boolean) => void;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete, currentUser, readOnly }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete, currentUser, readOnly, setGlobalLoading }) => {
     const [userVote, setUserVote] = useState<string | number | null>(poll.userVote || null);
     const [interaction, setInteraction] = useState<'like' | 'dislike' | null>(poll.userInteraction || null);
     const [likesCount, setLikesCount] = useState(poll.likes || 0);
     const [dislikesCount, setDislikesCount] = useState(poll.dislikes || 0);
     const [showFullDescription, setShowFullDescription] = useState(false);
-    const [interactorsModal, setInteractorsModal] = useState<{ type: 'like' | 'dislike', users: User[] } | null>(null);
+    const [interactorsModal, setInteractorsModal] = useState<{ type: 'like' | 'dislike' | 'vote', users: User[] } | null>(null);
     const [isLoadingInteractors, setIsLoadingInteractors] = useState(false);
     const [showModeration, setShowModeration] = useState(false);
 
@@ -41,7 +42,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         setDislikesCount(poll.dislikes || 0);
     }, [poll.id, poll.userVote, poll.userInteraction, poll.likes, poll.dislikes]);
 
-    const handleShowInteractors = async (e: React.MouseEvent, type: 'like' | 'dislike') => {
+    const handleShowInteractors = async (e: React.MouseEvent, type: 'like' | 'dislike' | 'vote') => {
         e.stopPropagation();
         setIsLoadingInteractors(true);
         setInteractorsModal({ type, users: [] });
@@ -55,8 +56,6 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
             setIsLoadingInteractors(false);
         }
     };
-
-    // ... (rest of state)
 
     const handleInteract = async (type: 'like' | 'dislike') => {
         if (readOnly) return;
@@ -84,6 +83,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         }
 
         // API Call
+        if (setGlobalLoading) setGlobalLoading(true);
         try {
             const PollService = (await import('../../services/PollService')).PollService;
             const userId = Number(currentUser.id);
@@ -99,6 +99,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         } catch (error) {
             console.error("Interaction failed, reverting", error);
             // Revert on error (could imply setting state back)
+        } finally {
+            if (setGlobalLoading) setGlobalLoading(false);
         }
     };
 
@@ -146,12 +148,13 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
             triggerConfetti();
             setUserVote(optionId);
 
+            if (setGlobalLoading) setGlobalLoading(true);
             try {
                 const PollService = (await import('../../services/PollService')).PollService;
                 const result = await PollService.vote(Number(poll.id), Number(currentUser.id), String(optionId));
 
                 if (result.success) {
-                    onVote(poll.id, result.pointsEarned); // Notify App to update user stats
+                    onVote(poll.id, result.pointsEarned, result.votes); // Notify App to update user stats and votes
                     if (onVoteComplete) {
                         onVoteComplete();
                     }
@@ -164,6 +167,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                 console.error("Vote failed", error);
                 setUserVote(null);
                 showToast("Failed to cast vote");
+            } finally {
+                if (setGlobalLoading) setGlobalLoading(false);
             }
         }
     };
@@ -218,6 +223,64 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         const isDisabled = !!userVote || !!isPollClosed || !!readOnly;
 
         switch (poll.pollType) {
+            case 'petition':
+                const signatureCount = Math.max(0, getTotalVotes(poll.votes));
+                const goal = Math.max(1, poll.goal_threshold || 100);
+                const progress = Math.min((signatureCount / goal) * 100, 100);
+                const isGoalReached = signatureCount >= goal;
+
+                return (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                        <div className="flex justify-between items-end mb-1">
+                            <div>
+                                <h3 className="text-2xl font-black text-gray-900 dark:text-gray-100">{signatureCount}</h3>
+                                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Signatures</p>
+                            </div>
+                            <div className="text-right">
+                                <span className={`text-sm font-bold ${isGoalReached ? 'text-green-600 dark:text-green-400' : 'text-gray-500'}`}>
+                                    {isGoalReached ? 'Goal Reached!' : `${goal} needed`}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full transition-all duration-1000 ease-out ${isGoalReached ? 'bg-green-500' : 'bg-blue-600'}`}
+                                style={{ width: `${progress}%` }}
+                            ></div>
+                        </div>
+
+                        <button
+                            onClick={(e) => handleShowInteractors(e, 'vote')}
+                            className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                        >
+                            <span> View Signature Wall</span>
+                            <ChevronLeftIcon /> {/* Rotated by default in other places, maybe need to check rotation logic */}
+                        </button>
+
+                        {!userVote ? (
+                            <button
+                                onClick={() => handleVote('signed')} // Use a distinct key or just 'signed'
+                                disabled={isDisabled}
+                                className={`w-full py-3 rounded-lg font-bold text-lg shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-2 
+                                    ${isDisabled ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed text-gray-500' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                <span>Sign Petition</span>
+                            </button>
+                        ) : (
+                            <div className="w-full py-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg font-bold text-center border border-green-200 dark:border-green-800 flex items-center justify-center space-x-2">
+                                <ShieldCheck className="w-5 h-5" />
+                                <span>You Signed!</span>
+                            </div>
+                        )}
+                        {isGoalReached && !userVote && (
+                            <p className="text-center text-xs font-bold text-green-600 animate-pulse">Campaign Goal Reached!</p>
+                        )}
+                    </div>
+                );
+
             case 'swipe':
                 if (isPollClosed && !userVote) {
                     return (
@@ -345,17 +408,16 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
     };
 
     return (
-        <div className="h-full w-full flex items-center justify-center p-3 snap-center relative">
+        <div id={`poll-${poll.id}`} className="h-full w-full flex items-center justify-center p-3 snap-center relative">
             <div className="w-full h-full bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 flex flex-col justify-between p-4 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex-shrink-0 flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-700/50">
                     <button onClick={() => onNavigate('profile', poll.creator)} className="flex items-center space-x-3 text-left group">
                         <img src={poll.creator?.avatar || `https://i.pravatar.cc/150?u=${poll.creatorId || 1}`} alt={poll.creator?.username || 'User'} className="w-10 h-10 rounded-full transition-transform group-hover:scale-110" />
-                        <div>
-                            <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{poll.creator?.username || 'Unknown User'}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{poll.timestamp ? timeAgo(poll.timestamp) : ''}</p>
+                        <div className="min-w-0">
+                            <p className="font-bold text-sm text-gray-900 dark:text-gray-100 truncate">{poll.creator?.username || 'Unknown User'}</p>
                         </div>
                     </button>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-shrink-0">
                         {/* Status for Creator/Mod */}
                         {((Number(currentUser?.id) === Number(poll.creatorId) && poll.status !== 'PUBLISHED') ||
                             (isModerator && poll.status === 'PENDING')) && poll.status && (
@@ -374,7 +436,6 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                                 {isTimeExpired ? 'Expired' : 'Ended'}
                             </span>
                         )}
-                        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">{poll.category}</span>
                     </div>
                 </div>
 
@@ -431,9 +492,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                     </div>
                     <div className="flex items-center space-x-4">
                         <button onClick={handleShare} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ShareIcon /></button>
-                        {poll.pollType !== 'swipe' && poll.pollType !== 'survey' && <button onClick={() => onNavigate('results', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChartBarIcon /> <span className="text-sm">{getTotalVotes(poll.votes)}</span></button>}
+                        {poll.pollType !== 'swipe' && poll.pollType !== 'survey' && poll.pollType !== 'petition' && <button onClick={() => onNavigate('results', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChartBarIcon /> <span className="text-sm">{getTotalVotes(poll.votes)}</span></button>}
                         <button onClick={() => onNavigate('comments', poll)} className="flex items-center space-x-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ChatIcon /> <span className="text-sm">{poll.commentsCount ?? poll.comments?.length ?? 0}</span></button>
-                        <button onClick={() => onNavigate('addPoll', poll)} className="flex items-center space-x-1.5 transition-colors text-gray-400 hover:text-green-600 dark:hover:text-green-400" title="Use as Template">
+                        <button onClick={() => {
+                            const { id, ...templateData } = poll;
+                            onNavigate('addPoll', templateData);
+                        }} className="flex items-center space-x-1.5 transition-colors text-gray-400 hover:text-green-600 dark:hover:text-green-400" title="Use as Template">
                             <DuplicateIcon />
                         </button>
                     </div>
@@ -455,7 +519,9 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-fade-in p-2 rounded-2xl" onClick={() => setInteractorsModal(null)}>
                     <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[70%] overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800">
-                            <h3 className="text-lg font-bold capitalize">Users who {interactorsModal.type}d</h3>
+                            <h3 className="text-lg font-bold capitalize">
+                                {interactorsModal.type === 'vote' ? 'Signatures' : `Users who ${interactorsModal.type}d`}
+                            </h3>
                             <button onClick={() => setInteractorsModal(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"><XIcon /></button>
                         </div>
                         <div className="flex-grow overflow-y-auto p-2">
@@ -487,7 +553,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                                 </div>
                             ) : (
                                 <div className="text-center p-8">
-                                    <p className="text-gray-500 text-sm">No {interactorsModal.type}s yet.</p>
+                                    <p className="text-gray-500 text-sm">No {interactorsModal.type === 'vote' ? 'signatures' : interactorsModal.type + 's'} yet.</p>
                                 </div>
                             )}
                         </div>
@@ -522,31 +588,54 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                                 <div className="flex gap-2">
                                     <button onClick={async () => {
                                         if (confirm('Approve this content?')) {
-                                            const PollService = (await import('../../services/PollService')).PollService;
-                                            await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'APPROVE');
-                                            setShowModeration(false);
-                                            showToast('Approved!');
-                                            // Refresh logic needed? Ideally callback
+                                            if (setGlobalLoading) setGlobalLoading(true);
+                                            try {
+                                                const PollService = (await import('../../services/PollService')).PollService;
+                                                await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'APPROVE');
+                                                setShowModeration(false);
+                                                showToast('Approved!');
+                                            } catch (e) {
+                                                console.error(e);
+                                                showToast('Failed to approve');
+                                            } finally {
+                                                if (setGlobalLoading) setGlobalLoading(false);
+                                            }
                                         }
                                     }} className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold text-sm transition-colors">Approve</button>
 
                                     <button onClick={async () => {
                                         const reason = prompt('Reason for rejection:');
                                         if (reason) {
-                                            const PollService = (await import('../../services/PollService')).PollService;
-                                            await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'REJECT', reason);
-                                            setShowModeration(false);
-                                            showToast('Content Rejected');
+                                            if (setGlobalLoading) setGlobalLoading(true);
+                                            try {
+                                                const PollService = (await import('../../services/PollService')).PollService;
+                                                await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'REJECT', reason);
+                                                setShowModeration(false);
+                                                showToast('Content Rejected');
+                                            } catch (e) {
+                                                console.error(e);
+                                                showToast('Failed to reject');
+                                            } finally {
+                                                if (setGlobalLoading) setGlobalLoading(false);
+                                            }
                                         }
                                     }} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold text-sm transition-colors">Reject</button>
                                 </div>
                                 <button onClick={async () => {
                                     const changes = prompt('What needs to be changed?');
                                     if (changes) {
-                                        const PollService = (await import('../../services/PollService')).PollService;
-                                        await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'REQUEST_CHANGES', changes);
-                                        setShowModeration(false);
-                                        showToast('Changes Requested');
+                                        if (setGlobalLoading) setGlobalLoading(true);
+                                        try {
+                                            const PollService = (await import('../../services/PollService')).PollService;
+                                            await PollService.moderatePoll(Number(poll.id), Number(currentUser.id), 'REQUEST_CHANGES', changes);
+                                            setShowModeration(false);
+                                            showToast('Changes Requested');
+                                        } catch (e) {
+                                            console.error(e);
+                                            showToast('Failed to request changes');
+                                        } finally {
+                                            if (setGlobalLoading) setGlobalLoading(false);
+                                        }
                                     }
                                 }} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-bold text-sm transition-colors">Request Changes</button>
                             </div>

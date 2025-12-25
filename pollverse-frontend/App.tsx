@@ -12,6 +12,7 @@ import PollCard from './components/poll/PollCard';
 import PollCardSkeleton from './components/poll/PollCardSkeleton';
 import Toast from './components/ui/Toast';
 import Toggle from './components/ui/Toggle';
+import LoadingOverlay from './components/ui/LoadingOverlay';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -41,6 +42,7 @@ function App() {
     const [searchActive, setSearchActive] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [toast, setToast] = useState({ show: false, message: '' });
+    const [globalLoading, setGlobalLoading] = useState(false);
 
     // Auto Scroll State
     const [autoScrollEnabled, setAutoScrollEnabled] = useState(false);
@@ -128,6 +130,7 @@ function App() {
     };
 
     const handleCreatePoll = async (newPollData: Partial<Poll>) => {
+        setGlobalLoading(true);
         try {
             let newPoll: Poll;
             const isUpdate = !!newPollData.id;
@@ -173,6 +176,8 @@ function App() {
         } catch (e) {
             console.error('Failed to create poll:', e);
             showToast('Failed to create poll');
+        } finally {
+            setGlobalLoading(false);
         }
     };
 
@@ -206,7 +211,7 @@ function App() {
         localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
     };
 
-    const handleVote = (pollId: number | string, pointsEarned?: number) => {
+    const handleVote = (pollId: number | string, pointsEarned?: number, updatedVotes?: Record<string | number, number>) => {
         const hasVoted = currentUser.pollsVotedOn.some(id => String(id) === String(pollId));
         if (!hasVoted) {
             const updatedUser = {
@@ -216,6 +221,10 @@ function App() {
             };
             setCurrentUser(updatedUser);
             localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
+
+            if (updatedVotes) {
+                setPolls(prev => prev.map(p => String(p.id) === String(pollId) ? { ...p, votes: updatedVotes } : p));
+            }
 
             // Sync with profile page if it's the current user's profile
             if (page.name === 'profile' && page.data && String(page.data.id) === String(currentUser.id)) {
@@ -249,6 +258,7 @@ function App() {
         const targetId = Number(userId);
         const isFollowing = currentUser.following.includes(String(targetId)) || currentUser.following.includes(targetId);
 
+        setGlobalLoading(true);
         try {
             let response;
             if (isFollowing) {
@@ -297,12 +307,14 @@ function App() {
         } catch (e) {
             console.error("Failed to toggle follow:", e);
             showToast('Failed to update follow status');
+        } finally {
+            setGlobalLoading(false);
         }
     };
 
     useEffect(() => {
+        setIsLoading(true);
         const fetchFeed = async () => {
-            setIsLoading(true);
             try {
                 // Determine filters
                 const filters: any = {};
@@ -314,8 +326,10 @@ function App() {
                 setPolls(data);
             } catch (e) {
                 console.error(e);
+            } finally {
+                setIsLoading(false);
+                setGlobalLoading(false);
             }
-            setIsLoading(false);
         };
 
         const debounceTimer = setTimeout(() => {
@@ -323,7 +337,19 @@ function App() {
         }, 300); // Debounce search
 
         return () => clearTimeout(debounceTimer);
-    }, [activeCategory, searchQuery, currentUser.following]);
+    }, [activeCategory, searchQuery, currentUser.following, isLoggedIn]);
+
+    useEffect(() => {
+        if (page.name === 'feed' && page.data?.targetPollId && !isLoading && polls.length > 0) {
+            const pollId = page.data.targetPollId;
+            setTimeout(() => {
+                const element = document.getElementById(`poll-${pollId}`);
+                if (element && scrollContainerRef.current) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 300);
+        }
+    }, [page.name, page.data, isLoading, polls.length]);
 
     // Removed local filtering `filteredPolls` useMemo as we now fetch from backend
     const filteredPolls = polls;
@@ -341,7 +367,7 @@ function App() {
             case 'settings':
                 return <SettingsPage onBack={() => handleNavigation('profile', currentUser)} />;
             case 'addPoll':
-                return <AddPollPage onBack={() => setPage({ name: 'feed' })} onPollCreate={handleCreatePoll} initialData={page.data} />;
+                return <AddPollPage onBack={() => setPage({ name: 'feed' })} onPollCreate={handleCreatePoll} initialData={page.data} loading={globalLoading} />;
             case 'login':
                 return <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setPage({ name: 'feed' })} />;
             case 'editProfile':
@@ -352,15 +378,19 @@ function App() {
                         poll={page.data}
                         onBack={() => setPage({ name: 'feed' })}
                         onComplete={async (pid, pts) => {
-                            if (isLoggedIn) {
-                                try {
+                            setGlobalLoading(true);
+                            try {
+                                if (isLoggedIn) {
                                     const result = await PollService.vote(Number(pid), Number(currentUser.id), 'completed');
                                     handleVote(pid, result.pointsEarned || pts);
-                                } catch (e) {
+                                } else {
                                     handleVote(pid, pts);
                                 }
-                            } else {
+                            } catch (e) {
+                                console.error(e);
                                 handleVote(pid, pts);
+                            } finally {
+                                setGlobalLoading(false);
                             }
                         }}
                     />
@@ -376,6 +406,7 @@ function App() {
                         requireLogin={requireLogin}
                         showToast={showToast}
                         onVote={handleVote}
+                        setGlobalLoading={setGlobalLoading}
                     />
                 );
             case 'admin':
@@ -385,7 +416,7 @@ function App() {
             case 'pointsLedger':
                 return <PointsLedgerPage onBack={() => handleNavigation('profile', currentUser)} onNavigate={handleNavigation} currentUser={currentUser} />;
             case 'reviewQueue':
-                return <ReviewQueuePage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} showToast={showToast} />;
+                return <ReviewQueuePage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} showToast={showToast} setGlobalLoading={setGlobalLoading} />;
             default:
 
                 return null;
@@ -474,8 +505,27 @@ function App() {
                                 </div>
                             )}
                         </div> :
-                        <div className="flex-shrink-0 w-full overflow-x-auto py-3 px-4 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
-                            <div className="flex space-x-3">{CATEGORIES.map(category => (<button key={category} onClick={() => setActiveCategory(category)} className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${activeCategory === category ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{category}</button>))}</div>
+                        <div className={`flex-shrink-0 w-full overflow-x-auto py-3 px-4 bg-white/80 dark:bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${isLoading ? 'opacity-70 pointer-events-none' : 'opacity-100'}`}>
+                            <div className="flex space-x-3">
+                                {CATEGORIES.map(category => (
+                                    <button
+                                        key={category}
+                                        onClick={() => {
+                                            if (activeCategory !== category) {
+                                                setGlobalLoading(true);
+                                                setIsLoading(true);
+                                                setActiveCategory(category);
+                                            }
+                                        }}
+                                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap flex items-center space-x-2 ${activeCategory === category
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                            }`}
+                                    >
+                                        <span>{category}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     }
 
@@ -494,9 +544,10 @@ function App() {
                                     isLoggedIn={isLoggedIn}
                                     requireLogin={requireLogin}
                                     showToast={showToast}
-                                    onVote={(pid, pts) => handleVote(pid, pts)}
+                                    onVote={(pid, pts, votes) => handleVote(pid, pts, votes)}
                                     onVoteComplete={handleVoteComplete}
                                     currentUser={currentUser}
+                                    setGlobalLoading={setGlobalLoading}
                                 />
                             ))
                         )}
@@ -516,6 +567,7 @@ function App() {
                     </div>
                 )}
                 <Toast message={toast.message} show={toast.show} />
+                <LoadingOverlay show={globalLoading} />
             </div>
         </ThemeProvider>
     );

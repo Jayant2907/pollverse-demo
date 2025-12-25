@@ -13,6 +13,7 @@ interface UserPollsPageProps {
     requireLogin: (action: () => void) => void;
     showToast: (message: string) => void;
     onVote: (pollId: number | string, pointsEarned?: number) => void;
+    setGlobalLoading?: (loading: boolean) => void;
 }
 
 const UserPollsPage: React.FC<UserPollsPageProps> = ({
@@ -23,7 +24,8 @@ const UserPollsPage: React.FC<UserPollsPageProps> = ({
     onNavigate,
     requireLogin,
     showToast,
-    onVote
+    onVote,
+    setGlobalLoading
 }) => {
     const [polls, setPolls] = useState<Poll[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +84,7 @@ const UserPollsPage: React.FC<UserPollsPageProps> = ({
                                 showToast={showToast}
                                 onVote={onVote}
                                 currentUser={currentUser}
+                                setGlobalLoading={setGlobalLoading}
                             />
                         </div>
                     ))

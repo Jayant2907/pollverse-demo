@@ -189,7 +189,7 @@ export const PollService = {
             throw error;
         }
     },
-    getInteractors: async (pollId: number, type: 'like' | 'dislike'): Promise<User[]> => {
+    getInteractors: async (pollId: number, type: 'like' | 'dislike' | 'vote'): Promise<User[]> => {
         try {
             const response = await fetch(`${API_URL}/${pollId}/interactors?type=${type}`);
             if (!response.ok) return [];
