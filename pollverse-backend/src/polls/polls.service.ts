@@ -195,11 +195,26 @@ export class PollsService {
     const poll = await this.pollsRepository.findOneBy({ id });
     if (!poll) return null;
 
+    const previousStatus = poll.status;
+
     // Any edit to a poll triggers re-moderation
     poll.status = 'PENDING';
 
     Object.assign(poll, updatePollDto);
-    return this.pollsRepository.save(poll);
+    const savedPoll = await this.pollsRepository.save(poll);
+
+    // If it was previously rejected or changes requested, record the resubmission in logs
+    if (previousStatus !== 'PENDING') {
+      const log = this.moderationLogRepository.create({
+        pollId: id,
+        moderatorId: updatePollDto.creatorId || poll.creatorId,
+        action: 'RESUBMITTED',
+        comment: 'User resubmitted the poll after edits.'
+      });
+      await this.moderationLogRepository.save(log);
+    }
+
+    return savedPoll;
   }
 
   async remove(id: number) {
@@ -260,9 +275,10 @@ export class PollsService {
 
     // Award Points for Voting
     let points = 5;
-    let actionType: 'VOTE' | 'SWIPE_BONUS' | 'SURVEY_COMPLETE' = 'VOTE';
+    let actionType: 'VOTE' | 'SWIPE_BONUS' | 'SURVEY_COMPLETE' | 'SIGN_PETITION' = 'VOTE';
     if (poll.pollType === 'swipe') { points = 10; actionType = 'SWIPE_BONUS'; }
     if (poll.pollType === 'survey') { points = 20; actionType = 'SURVEY_COMPLETE'; }
+    if (poll.pollType === 'petition') { points = 15; actionType = 'SIGN_PETITION'; }
     const ptResult = await this.pointsService.awardPoints(userId, points, actionType, pollId, { pollId });
 
     return { success: true, message: 'Vote recorded', votes: poll.votes, pointsEarned: ptResult.pointsEarned || 0 };
@@ -412,7 +428,15 @@ export class PollsService {
     return this.commentRepository.save(comments);
   }
 
-  async getInteractors(pollId: number, type: 'like' | 'dislike') {
+  async getInteractors(pollId: number, type: 'like' | 'dislike' | 'vote') {
+    if (type === 'vote') {
+      const votes = await this.voteRepository.find({
+        where: { pollId },
+        relations: ['user'],
+      });
+      // Filter out duplicate users if any (though Unique constraint prevents it)
+      return votes.map(v => v.user);
+    }
     const interactions = await this.interactionRepository.find({
       where: { pollId, type },
       relations: ['user'],

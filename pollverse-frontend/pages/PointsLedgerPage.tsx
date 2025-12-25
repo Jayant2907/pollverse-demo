@@ -32,10 +32,12 @@ const PointsLedgerPage: React.FC<PointsLedgerPageProps> = ({ onBack, onNavigate,
             } else if (tx.actionType === 'LIKE_COMMENT' && tx.metadata?.pollId) {
                 const poll = await PollService.getPoll(tx.metadata.pollId);
                 if (poll) onNavigate('comments', poll);
+            } else if (tx.actionType === 'SIGN_PETITION' && tx.targetId) {
+                // Navigate to feed with the petition in focus
+                onNavigate('feed', { targetPollId: tx.targetId });
             } else if (tx.targetId) {
                 const poll = await PollService.getPoll(tx.targetId);
                 if (poll) {
-                    // Navigate to results if voted, or feed if not? Usually results is safer for history
                     onNavigate('results', poll);
                 }
             }
@@ -63,7 +65,9 @@ const PointsLedgerPage: React.FC<PointsLedgerPageProps> = ({ onBack, onNavigate,
             'FOLLOW': 'Followed User',
             'LIKE_COMMENT': 'Comment Liked',
             'TRENDING_BONUS': 'Poll Trending!',
-            'CLAWBACK': 'Points Reversed'
+            'CLAWBACK': 'Points Reversed',
+            'SIGN_PETITION': 'Signed Petition',
+            'POLL_PUBLISHED': 'Poll Went Live'
         };
         return labels[actionType] || actionType;
     };
@@ -77,7 +81,9 @@ const PointsLedgerPage: React.FC<PointsLedgerPageProps> = ({ onBack, onNavigate,
             'FOLLOW': '👤',
             'LIKE_COMMENT': '💬',
             'TRENDING_BONUS': '🔥',
-            'CLAWBACK': '⚠️'
+            'CLAWBACK': '⚠️',
+            'SIGN_PETITION': '✍️',
+            'POLL_PUBLISHED': '🚀'
         };
         return icons[actionType] || '⭐';
     };
