@@ -38,7 +38,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBack }) => {
 
         try {
             // Try to find user by email in backend
-            const response = await fetch('http://localhost:3000/users/login', {
+            const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+            const response = await fetch(`${BASE_URL}/users/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password: '' }) // No password required

@@ -1,4 +1,5 @@
-const POINTS_URL = 'http://localhost:3000/points'; // Adjust base URL as needed
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const POINTS_URL = `${BASE_URL}/points`;
 
 export const PointsService = {
     getLeaderboard: async () => {

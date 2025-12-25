@@ -1,6 +1,7 @@
 import { Comment } from '../types';
 
-const API_URL = 'http://localhost:3000/polls';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_URL = `${BASE_URL}/polls`;
 // Note: Comments are currently sub-resource of polls endpoint in backend. 
 // We might want to move backend to /comments eventually, but for now we keep URL structure but separate service.
 

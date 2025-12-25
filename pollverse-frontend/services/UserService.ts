@@ -1,6 +1,7 @@
 import { User } from '../types';
 
-const USERS_URL = 'http://localhost:3000/users';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const USERS_URL = `${BASE_URL}/users`;
 
 export const UserService = {
     getUsers: async (): Promise<User[]> => {

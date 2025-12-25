@@ -104,7 +104,8 @@ function App() {
 
     const updateUserRank = async (userId: number | string) => {
         try {
-            const res = await fetch(`http://localhost:3000/points/rank/${userId}`);
+            const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+            const res = await fetch(`${BASE_URL}/points/rank/${userId}`);
             if (res.ok) {
                 const rankData = await res.json();
                 setCurrentUser(prev => {
@@ -156,7 +157,8 @@ function App() {
 
 
             if (newPoll.status === 'PUBLISHED') {
-                const rankData = await fetch(`http://localhost:3000/points/rank/${currentUser.id}`).then(r => r.json());
+                const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                const rankData = await fetch(`${BASE_URL}/points/rank/${currentUser.id}`).then(r => r.json());
                 const updatedUser = {
                     ...currentUser,
                     points: rankData?.points || currentUser.points,
