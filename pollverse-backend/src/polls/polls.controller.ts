@@ -83,7 +83,7 @@ export class PollsController {
   }
 
   @Get(':id/interactors')
-  getInteractors(@Param('id') id: string, @Query('type') type: 'like' | 'dislike') {
+  getInteractors(@Param('id') id: string, @Query('type') type: 'like' | 'dislike' | 'vote') {
     return this.pollsService.getInteractors(+id, type);
   }
 
