@@ -8,9 +8,10 @@ interface AddPollPageProps {
     onPollCreate: (pollData: Partial<Poll>) => void;
     initialData?: Poll;
     loading?: boolean;
+    currentUser: any;
 }
 
-const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initialData, loading }) => {
+const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initialData, loading, currentUser }) => {
     const [pollType, setPollType] = useState<Poll['pollType']>(initialData?.pollType || 'multiple_choice');
     const [question, setQuestion] = useState(initialData?.question || '');
     const [description, setDescription] = useState(initialData?.description || '');
@@ -35,8 +36,9 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
     const [swipeResults, setSwipeResults] = useState(initialData?.swipeResults || { lowScoreTitle: 'You are Basic', highScoreTitle: 'You are Unique' });
 
     // Advanced Config
-    const [expiresAt, setExpiresAt] = useState('');
-    const [maxVotes, setMaxVotes] = useState('');
+    const [expiresAt, setExpiresAt] = useState(initialData?.expiresAt ? new Date(initialData.expiresAt).toISOString().slice(0, 16) : '');
+    const [scheduledAt, setScheduledAt] = useState(initialData?.scheduledAt ? new Date(initialData.scheduledAt).toISOString().slice(0, 16) : '');
+    const [maxVotes, setMaxVotes] = useState(initialData?.maxVotes?.toString() || '');
     const [goalThreshold, setGoalThreshold] = useState(initialData?.goal_threshold?.toString() || '');
     const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -91,6 +93,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
             tags: tags.split(' ').map(t => t.trim().replace(/^#/, '')).filter(t => t.length > 0),
             ...(pollType === 'swipe' ? { swipeResults } : {}),
             expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+            scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
             maxVotes: maxVotes ? parseInt(maxVotes) : undefined,
             goal_threshold: (pollType === 'petition' && goalThreshold) ? parseInt(goalThreshold) : undefined,
             id: initialData?.id,
@@ -282,6 +285,16 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
                     {showAdvanced && (
                         <div className="mt-4 space-y-4 animate-fade-in bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
                             <div>
+                                <InputLabel>Schedule Poll (Live At)</InputLabel>
+                                <input
+                                    type="datetime-local"
+                                    value={scheduledAt}
+                                    onChange={(e) => setScheduledAt(e.target.value)}
+                                    className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Poll will go live automatically at this time.</p>
+                            </div>
+                            <div>
                                 <InputLabel>Expiration Date & Time</InputLabel>
                                 <input
                                     type="datetime-local"
@@ -309,6 +322,22 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
                             </div>
                         </div>
                     )}
+                </section>
+
+                <section className="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${(currentUser?.points || 0) >= 2000 ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                            <ShieldCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold">Moderation Status</h4>
+                            <p className="text-xs text-gray-500">
+                                {(currentUser?.points || 0) >= 2000
+                                    ? "Verified Creator: Your poll will be published immediately!"
+                                    : "Standard Creator: Your poll will be reviewed by top users before it goes live."}
+                            </p>
+                        </div>
+                    </div>
                 </section>
             </main>
 

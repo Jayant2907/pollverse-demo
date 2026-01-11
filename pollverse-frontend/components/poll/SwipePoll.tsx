@@ -77,31 +77,36 @@ const SwipePoll: React.FC<SwipePollProps> = ({ poll, onVoteComplete, readOnly })
   const currentOption = poll.options[currentIndex];
 
   return (
-    <div className="relative h-64 w-full flex flex-col items-center justify-center">
-      <div className="absolute top-2 right-2 text-xs font-bold text-gray-400">
+    <div className="relative w-full h-96 flex flex-col items-center justify-center my-4">
+      <div className="absolute top-0 right-2 text-xs font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full z-20">
         {currentIndex + 1} / {poll.options.length}
       </div>
 
       {/* Card Stack Effect */}
-      <div className="absolute w-full max-w-[85%] h-56 bg-gray-200 dark:bg-gray-700 rounded-xl transform translate-y-2 scale-95 -z-10"></div>
+      <div className="absolute w-full max-w-[85%] h-80 bg-gray-200 dark:bg-gray-700/50 rounded-2xl transform translate-y-3 scale-95 -z-10"></div>
+      <div className="absolute w-full max-w-[90%] h-80 bg-gray-100 dark:bg-gray-700 rounded-2xl transform translate-y-1.5 scale-[0.97] -z-10"></div>
 
       {/* Active Card */}
-      <div className={`w-full max-w-[90%] h-56 bg-white dark:bg-gray-800 border-2 ${lastDirection === 'left' ? 'border-red-500 rotate-[-10deg] translate-x-[-50px] opacity-0' : lastDirection === 'right' ? 'border-green-500 rotate-[10deg] translate-x-[50px] opacity-0' : 'border-gray-200 dark:border-gray-600'} rounded-xl shadow-lg flex items-center justify-center p-6 text-center transition-all duration-300`}>
-        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">{currentOption.text}</span>
+      <div className={`w-full max-w-[95%] h-80 bg-white dark:bg-gray-800 border ${lastDirection === 'left' ? 'border-red-500 rotate-[-10deg] translate-x-[-100px] opacity-0' : lastDirection === 'right' ? 'border-green-500 rotate-[10deg] translate-x-[100px] opacity-0' : 'border-gray-200 dark:border-gray-700'} rounded-2xl shadow-xl flex items-center justify-center p-8 text-center transition-all duration-300 z-10 relative overflow-hidden`}>
+        {/* Overlay Colors for swipe hint */}
+        <div className={`absolute inset-0 bg-red-500/10 pointer-events-none transition-opacity duration-300 ${lastDirection === 'left' ? 'opacity-100' : 'opacity-0'}`}></div>
+        <div className={`absolute inset-0 bg-green-500/10 pointer-events-none transition-opacity duration-300 ${lastDirection === 'right' ? 'opacity-100' : 'opacity-0'}`}></div>
+
+        <span className="text-2xl font-black text-gray-800 dark:text-gray-100 leading-tight">{currentOption.text}</span>
       </div>
 
       {/* Controls */}
       {!readOnly && (
-        <div className="flex items-center space-x-8 mt-6">
+        <div className="flex items-center space-x-12 mt-6 z-20">
           <button
             onClick={() => handleSwipe('left')}
-            className="w-14 h-14 rounded-full bg-white dark:bg-gray-800 text-red-500 shadow-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+            className="w-16 h-16 rounded-full bg-white dark:bg-gray-800 text-red-500 shadow-xl border border-gray-100 dark:border-gray-700 flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
           >
             <XIcon />
           </button>
           <button
             onClick={() => handleSwipe('right')}
-            className="w-14 h-14 rounded-full bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+            className="w-16 h-16 rounded-full bg-gradient-to-r from-green-400 to-green-600 text-white shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
           >
             <HeartIcon />
           </button>

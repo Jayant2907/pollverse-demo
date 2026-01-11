@@ -60,6 +60,7 @@ export interface Poll {
 
   // Expiration Logic
   expiresAt?: Date;
+  scheduledAt?: Date;
   maxVotes?: number;
   goal_threshold?: number;
   // Social state for current user

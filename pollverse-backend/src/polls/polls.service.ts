@@ -37,8 +37,16 @@ export class PollsService {
       votes: {},
       status: 'PENDING',
       createdAt: new Date(),
-
     });
+
+    // Check if user qualifies for moderation bypass (e.g. > 2000 points)
+    if (createPollDto.creatorId) {
+      const userRank = await this.pointsService.getUserRank(createPollDto.creatorId);
+      if (userRank && (userRank.points >= 2000 || userRank.rank <= 10)) {
+        poll.status = 'PUBLISHED';
+      }
+    }
+
     const savedPoll = await this.pollsRepository.save(poll);
 
     // Update user's pollsCount
@@ -126,6 +134,14 @@ export class PollsService {
     } else {
       // General feed
       qb.andWhere('poll.status = :status', { status: 'PUBLISHED' });
+    }
+
+    // Scheduling Filter: Only show polls where scheduledAt is null or in the past
+    // But allow creator to see their own scheduled polls
+    if (query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {
+      // No time filter for own profile
+    } else {
+      qb.andWhere('(poll.scheduledAt IS NULL OR poll.scheduledAt <= CURRENT_TIMESTAMP)');
     }
 
     if (query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {

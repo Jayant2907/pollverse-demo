@@ -8,7 +8,7 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Inter', 'sans-serif'],
+                sans: ['Roboto', 'Inter', 'sans-serif'],
             },
             animation: {
                 'fade-in': 'fadeIn 0.3s ease-in-out',
