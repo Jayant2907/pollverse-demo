@@ -1,13 +1,21 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+
 import { PollService } from './services/PollService';
 import { UserService } from './services/UserService';
 import { ThemeProvider } from './context/ThemeContext';
 import { PageState, Poll, User } from './types';
 import { MOCK_USER, CATEGORIES } from './constants';
 import {
-    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, XIcon, DuplicateIcon, TrophyIcon, ShieldCheck
-
+    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, TrophyIcon, ShieldCheck
 } from './components/Icons';
+
+// Layout
+import Sidebar from './components/layout/Sidebar';
+import RightPanel from './components/layout/RightPanel';
 import PollCard from './components/poll/PollCard';
 import PollCardSkeleton from './components/poll/PollCardSkeleton';
 import Toast from './components/ui/Toast';
@@ -367,7 +375,7 @@ function App() {
             case 'settings':
                 return <SettingsPage onBack={() => handleNavigation('profile', currentUser)} />;
             case 'addPoll':
-                return <AddPollPage onBack={() => setPage({ name: 'feed' })} onPollCreate={handleCreatePoll} initialData={page.data} loading={globalLoading} />;
+                return <AddPollPage onBack={() => setPage({ name: 'feed' })} onPollCreate={handleCreatePoll} initialData={page.data} loading={globalLoading} currentUser={currentUser} />;
             case 'login':
                 return <LoginPage onLoginSuccess={handleLoginSuccess} onBack={() => setPage({ name: 'feed' })} />;
             case 'editProfile':
@@ -444,128 +452,139 @@ function App() {
 
     return (
         <ThemeProvider>
-            <div className="w-full h-screen flex items-center justify-center p-4">
-                <div className="w-full h-full bg-gray-100 dark:bg-black font-sans flex flex-col shadow-2xl border-gray-300 dark:border-gray-700 border-8 rounded-[40px] overflow-hidden relative">
-                    {/* Main Feed View */}
-                    <div className={`h-full w-full flex flex-col ${isDetailPage ? 'hidden' : 'flex'}`}>
-                        <div className="flex-shrink-0 w-full p-4 bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                            <button onClick={() => setSearchActive(!searchActive)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><SearchIcon /></button>
+            <div className="min-h-screen w-full bg-white dark:bg-black font-sans text-gray-900 dark:text-gray-100 flex justify-center">
+
+                {/* Desktop Layout Container: Max width constraint for large screens to keep content centered like Twitter */}
+                <div className="w-full max-w-[1300px] flex justify-center md:px-0">
+
+                    {/* LEFT SIDEBAR (Desktop) */}
+                    <Sidebar
+                        page={page.name}
+                        onNavigate={handleNavigation}
+                        currentUser={currentUser}
+                    />
+
+                    {/* MAIN FEED COLUMN */}
+                    <main className="flex-grow w-full max-w-[600px] border-x border-gray-100 dark:border-gray-800 min-h-screen relative md:mx-4 lg:mx-8">
+
+                        {/* Mobile Header (Hidden on Desktop) */}
+                        <div className={`sticky top-0 z-30 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-4 py-3 flex items-center justify-between md:hidden ${isDetailPage ? 'hidden' : 'flex'}`}>
+                            <button onClick={() => setSearchActive(!searchActive)} className="text-gray-500 dark:text-gray-400 p-2 rounded-full hover:bg-gray-100"><SearchIcon /></button>
                             <div className="flex items-center space-x-2">
                                 <AppLogo />
-                                <h1 className="text-xl font-bold text-gray-800 dark:text-gray-200">PollVerse</h1>
+                                <h1 className="text-xl font-bold tracking-tighter">PollVerse</h1>
                             </div>
-                            <div className="flex items-center space-x-3">
-                                {/* Auto Scroll Toggle */}
-                                <div className="flex items-center space-x-1" title="Auto Scroll">
-                                    <span className="text-xs font-bold text-blue-600">Auto</span>
-                                    <Toggle enabled={autoScrollEnabled} onChange={() => setAutoScrollEnabled(!autoScrollEnabled)} />
-                                </div>
-                                {isLoggedIn && (currentUser?.rank || 999) <= 4 && (
-                                    <button onClick={() => setPage({ name: 'reviewQueue' })} className="text-gray-500 hover:text-blue-600 transition-colors" title="Review Queue">
-                                        <ShieldCheck className="w-6 h-6" />
-                                    </button>
-                                )}
-                                <button onClick={() => setPage({ name: 'leaderboard' })} className="text-gray-500 hover:text-yellow-500" title="Leaderboard"><TrophyIcon /></button>
-
-
-                                <button onClick={() => setPage({ name: 'admin' })} className="text-gray-500 hover:text-blue-500" title="Admin/Seed"><DuplicateIcon /></button>
-                                <button onClick={() => handleNavigation('notifications')} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><BellIcon /></button>
+                            <div className="flex items-center">
+                                <button onClick={() => handleNavigation('notifications')}><BellIcon /></button>
                             </div>
                         </div>
-                    </div>
 
-                    {searchActive ?
-                        <div className="flex-shrink-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 flex flex-col animate-fade-in relative z-10 transition-all duration-300">
-                            <div className="flex items-center space-x-2 p-2">
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search polls..."
-                                    className="w-full bg-gray-100 dark:bg-gray-800 border-transparent rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
-                                    autoFocus
-                                />
-                                <button onClick={() => { setSearchActive(false); setSearchQuery(''); }} className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><XIcon /></button>
-                            </div>
-
-                            {searchQuery.trim() === '' && topHashtags.length > 0 && (
-                                <div className="px-4 pb-3 animate-fade-in">
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Trending Topics</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {topHashtags.map(tag => (
-                                            <button
-                                                key={tag}
-                                                onClick={() => setSearchQuery(tag)}
-                                                className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm rounded-full font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                                            >
-                                                #{tag}
-                                            </button>
-                                        ))}
-                                    </div>
+                        {/* Desktop Header (Sticky at top of feed) */}
+                        <div className="hidden md:flex sticky top-0 z-40 bg-white dark:bg-black/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-4 py-3 items-center justify-between cursor-pointer" onClick={() => {
+                            if (scrollContainerRef.current) scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}>
+                            <h2 className="text-lg font-bold">{page.name === 'feed' ? 'Home' : page.name.charAt(0).toUpperCase() + page.name.slice(1)}</h2>
+                            <div className="flex items-center gap-4">
+                                {isLoggedIn && (currentUser?.rank || 999) <= 4 && (
+                                    <button onClick={(e) => { e.stopPropagation(); setPage({ name: 'reviewQueue' }) }} title="Moderation Queue">
+                                        <ShieldCheck className="w-5 h-5 text-gray-500 hover:text-blue-500" />
+                                    </button>
+                                )}
+                                <div title="Auto-scroll" onClick={(e) => e.stopPropagation()}>
+                                    <Toggle enabled={autoScrollEnabled} onChange={() => setAutoScrollEnabled(!autoScrollEnabled)} />
                                 </div>
-                            )}
-                        </div> :
-                        <div className={`flex-shrink-0 w-full overflow-x-auto py-3 px-4 bg-white/80 dark:bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${isLoading ? 'opacity-70 pointer-events-none' : 'opacity-100'}`}>
-                            <div className="flex space-x-3">
+                            </div>
+                        </div>
+
+                        {/* Mobile Search Overlay */}
+                        {searchActive && (
+                            <div className="md:hidden p-4 bg-white dark:bg-black border-b border-gray-200">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    className="w-full bg-gray-100 dark:bg-gray-800 p-2 rounded-lg text-sm"
+                                    placeholder="Search..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        )}
+
+                        {/* Category Filter (Visible on both, scroller) */}
+                        {page.name === 'feed' && (
+                            <div className="overflow-x-auto py-2.5 px-4 flex space-x-2.5 scrollbar-hide border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-black/95 backdrop-blur-md sticky top-[60px] md:top-[51px] z-30">
                                 {CATEGORIES.map(category => (
                                     <button
                                         key={category}
-                                        onClick={() => {
-                                            if (activeCategory !== category) {
-                                                setGlobalLoading(true);
-                                                setIsLoading(true);
-                                                setActiveCategory(category);
-                                            }
-                                        }}
-                                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap flex items-center space-x-2 ${activeCategory === category
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105'
-                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                        onClick={() => setActiveCategory(category)}
+                                        className={`px-3.5 py-1 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${activeCategory === category
+                                            ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
+                                            : 'bg-gray-100/80 dark:bg-gray-800/80 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
                                             }`}
                                     >
-                                        <span>{category}</span>
+                                        {category}
                                     </button>
                                 ))}
                             </div>
-                        </div>
-                    }
-
-                    <div ref={scrollContainerRef} className="flex-grow w-full overflow-y-auto snap-y snap-mandatory scroll-smooth">
-                        {isLoading ? (
-                            <>
-                                <PollCardSkeleton />
-                                <PollCardSkeleton />
-                            </>
-                        ) : (
-                            filteredPolls.map(poll => (
-                                <PollCard
-                                    key={poll.id}
-                                    poll={poll}
-                                    onNavigate={handleNavigation}
-                                    isLoggedIn={isLoggedIn}
-                                    requireLogin={requireLogin}
-                                    showToast={showToast}
-                                    onVote={(pid, pts, votes) => handleVote(pid, pts, votes)}
-                                    onVoteComplete={handleVoteComplete}
-                                    currentUser={currentUser}
-                                    setGlobalLoading={setGlobalLoading}
-                                />
-                            ))
                         )}
-                    </div>
 
-                    <nav className="flex-shrink-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 flex justify-around items-center p-2">
-                        <button onClick={() => setPage({ name: 'feed' })} className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white ${page.name === 'feed' ? '!text-blue-600 dark:!text-blue-500' : ''}`}><HomeIcon active={page.name === 'feed'} /></button>
-                        <button onClick={() => handleNavigation('addPoll')} className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg shadow-blue-500/30 -mt-10 border-4 border-white dark:border-black hover:scale-105 transition-transform"><PlusIcon /></button>
-                        <button onClick={() => handleNavigation('profile', currentUser)} className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white ${page.name === 'profile' ? '!text-blue-600 dark:!text-blue-500' : ''}`}><UserIcon active={page.name === 'profile'} /></button>
-                    </nav>
+                        {/* Content Area */}
+                        <div ref={scrollContainerRef} className="h-[calc(100vh-120px)] md:h-auto overflow-y-auto md:overflow-visible no-scrollbar pb-20 md:pb-0">
+                            {isLoading ? (
+                                <div className="p-4 space-y-4">
+                                    <PollCardSkeleton />
+                                    <PollCardSkeleton />
+                                </div>
+                            ) : (
+                                filteredPolls.map(poll => (
+                                    <div key={poll.id} className="border-b border-gray-100 dark:border-gray-800 md:border-none md:mb-6">
+                                        <PollCard
+                                            poll={poll}
+                                            onNavigate={handleNavigation}
+                                            isLoggedIn={isLoggedIn}
+                                            requireLogin={requireLogin}
+                                            showToast={showToast}
+                                            onVote={(pid, pts, votes) => handleVote(pid, pts, votes)}
+                                            onVoteComplete={handleVoteComplete}
+                                            currentUser={currentUser}
+                                            setGlobalLoading={setGlobalLoading}
+                                        />
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Dynamic Content (Modal-like) */}
+                        <div className={`fixed inset-0 z-[60] flex items-center justify-center p-0 md:p-4 transition-all duration-300 ${isDetailPage ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                            <div
+                                onClick={() => setPage({ name: 'feed' })}
+                                className="absolute inset-0 bg-black/40 backdrop-blur-[2px] cursor-pointer"
+                            ></div>
+                            <div className={`bg-white dark:bg-black w-full h-full md:h-[85vh] md:max-w-2xl md:rounded-3xl shadow-2xl relative overflow-hidden transition-all duration-500 transform ${isDetailPage ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-10 scale-95 opacity-0'}`}>
+                                <div className="h-full overflow-hidden flex flex-col">
+                                    {renderDetailContent()}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Bottom Navigation (Mobile Only) */}
+                        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-gray-100 flex justify-around items-center h-[60px] z-30 pb-safe">
+                            <button onClick={() => setPage({ name: 'feed' })} className={`p-2 ${page.name === 'feed' ? 'text-blue-600' : 'text-gray-400'}`}><HomeIcon active={page.name === 'feed'} /></button>
+                            <button onClick={() => setPage({ name: 'explore' })} className={`p-2 ${page.name === 'explore' ? 'text-blue-600' : 'text-gray-400'}`}><SearchIcon /></button>
+                            <button onClick={() => handleNavigation('addPoll')} className="p-2 -mt-8"><div className="bg-blue-600 text-white p-3 rounded-full shadow-lg"><PlusIcon /></div></button>
+                            <button onClick={() => handleNavigation('leaderboard')} className={`p-2 ${page.name === 'leaderboard' ? 'text-blue-600' : 'text-gray-400'}`}><TrophyIcon /></button>
+                            <button onClick={() => handleNavigation('profile', currentUser)} className={`p-2 ${page.name === 'profile' ? 'text-blue-600' : 'text-gray-400'}`}><UserIcon active={page.name === 'profile'} /></button>
+                        </nav>
+                    </main>
+
+                    {/* RIGHT PANEL (Desktop) */}
+                    <RightPanel
+                        onNavigate={handleNavigation}
+                        trendingTags={topHashtags}
+                        setSearchQuery={(q: string) => { setSearchQuery(q); setActiveCategory('For You'); /* Reset cat to search globally */ }}
+                    />
+
                 </div>
 
-                {/* Detail Page Overlay */}
-                {isDetailPage && (
-                    <div className="absolute top-0 left-0 h-full w-full bg-white dark:bg-black z-20">
-                        {renderDetailContent()}
-                    </div>
-                )}
                 <Toast message={toast.message} show={toast.show} />
                 <LoadingOverlay show={globalLoading} />
             </div>
