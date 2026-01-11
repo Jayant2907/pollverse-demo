@@ -72,6 +72,9 @@ export class Poll {
     @Column({ type: 'int', nullable: true })
     maxVotes: number | null;
 
+    // @Column({ type: 'int', nullable: true })
+    // goal_threshold: number | null;
+
     @CreateDateColumn()
     createdAt: Date;
 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User, Poll } from '../types';
-import { ChevronLeftIcon, CogIcon, LogoutIcon, XIcon, ShieldCheck, Clock, FileEdit, ShieldAlert } from '../components/Icons';
+import { ChevronLeftIcon, CogIcon, LogoutIcon, XIcon } from '../components/Icons';
 import { UserService } from '../services/UserService';
 import { PollService } from '../services/PollService';
-import PollCard from '../components/poll/PollCard';
+import PollStatusDashboard from '../components/poll/PollStatusDashboard';
 
 interface ProfilePageProps {
     user: User;
@@ -165,7 +165,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                         )}
                     </div>
 
-                    <div className="p-4">
+                    <div className={activeTab === 'status' ? '' : 'p-4'}>
                         {activeTab === 'created' && (
                             <div className="grid grid-cols-2 gap-3">
                                 {userPolls.length > 0 ? userPolls.map(poll => (<div key={poll.id} className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm"><p className="font-semibold truncate">{poll.question}</p></div>)) : <div className="col-span-2 text-center text-gray-400 p-8">{isMainUser ? "You haven't" : "This user hasn't"} created any polls yet.</div>}
@@ -180,30 +180,45 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                             <div className="space-y-3">
                                 {isLoadingStatus ? (
                                     <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
-                                ) : statusPolls.length > 0 ? statusPolls.map(poll => (
-                                    <div key={poll.id} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-sm relative overflow-hidden">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded 
-                                                ${poll.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
-                                                    poll.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                {poll.status === 'PENDING' ? 'In Review' : poll.status === 'REJECTED' ? 'Rejected' : 'Action Needed'}
+                                ) : statusPolls.length > 0 ? (
+                                    statusPolls.map(poll => (
+                                        <div key={poll.id} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-sm relative overflow-hidden animate-fade-in-up">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded 
+                                                    ${poll.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                                                        poll.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                    {poll.status === 'PENDING' ? 'In Review' : poll.status === 'REJECTED' ? 'Rejected' : 'Action Needed'}
+                                                </div>
+                                                <span className="text-[10px] text-gray-400 font-medium">{poll.createdAt ? new Date(poll.createdAt).toLocaleDateString() : ''}</span>
                                             </div>
-                                            <span className="text-[10px] text-gray-400 font-medium">{poll.createdAt ? new Date(poll.createdAt).toLocaleDateString() : ''}</span>
+                                            <h4 className="font-bold text-gray-900 dark:text-gray-100 mb-1">{poll.question}</h4>
+                                            <p className="text-xs text-gray-500 line-clamp-1 mb-3">{poll.description || 'No description'}</p>
+                                            <button
+                                                onClick={() => setSelectedPollForStatus(poll)}
+                                                className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center"
+                                            >
+                                                View Timeline & Details <span className="ml-1">→</span>
+                                            </button>
                                         </div>
-                                        <h4 className="font-bold text-gray-900 dark:text-gray-100 mb-1">{poll.question}</h4>
-                                        <p className="text-xs text-gray-500 line-clamp-1 mb-3">{poll.description || 'No description'}</p>
-                                        <button
-                                            onClick={() => setSelectedPollForStatus(poll)}
-                                            className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center"
-                                        >
-                                            View Timeline & Details <span className="ml-1">→</span>
-                                        </button>
-                                    </div>
-                                )) : <div className="text-center text-gray-400 p-8">No polls in review.</div>}
+                                    ))
+                                ) : (
+                                    <div className="text-center text-gray-400 p-8">No polls in review status.</div>
+                                )}
                             </div>
                         )}
                     </div>
                 </div>
+
+                {selectedPollForStatus && (
+                    <div className="fixed inset-0 z-[100] bg-white dark:bg-black animate-slide-up">
+                        <PollStatusDashboard
+                            polls={[selectedPollForStatus]}
+                            currentUser={currentUser}
+                            onNavigate={onNavigate}
+                            onBack={() => setSelectedPollForStatus(null)}
+                        />
+                    </div>
+                )}
 
                 {isMainUser && (
                     <div className="p-4 mt-4">
@@ -257,125 +272,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                             )}
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* Poll Status Detail Modal */}
-            {selectedPollForStatus && (
-                <div className="absolute inset-0 bg-white dark:bg-gray-900 z-[60] flex flex-col animate-slide-up">
-                    <header className="flex-shrink-0 flex items-center p-4 border-b border-gray-100 dark:border-gray-800">
-                        <button onClick={() => setSelectedPollForStatus(null)} className="text-blue-600 p-2 -ml-2 rounded-full hover:bg-gray-50 dark:hover:bg-gray-800"><ChevronLeftIcon /></button>
-                        <h2 className="text-lg font-bold mx-auto">Poll Status</h2>
-                        <div className="w-8"></div>
-                    </header>
-                    <div className="flex-grow overflow-y-auto">
-                        {/* Status Summary Banner */}
-                        <div className={`p-4 flex items-center justify-between
-                            ${selectedPollForStatus.status === 'PENDING' ? 'bg-yellow-50 text-yellow-800' :
-                                selectedPollForStatus.status === 'REJECTED' ? 'bg-red-50 text-red-800' : 'bg-orange-50 text-orange-800'}`}>
-                            <div>
-                                <h3 className="font-bold">
-                                    {selectedPollForStatus.status === 'PENDING' ? 'In Review' :
-                                        selectedPollForStatus.status === 'REJECTED' ? 'Rejected' : 'Changes Requested'}
-                                </h3>
-                                <p className="text-xs opacity-80">
-                                    {selectedPollForStatus.status === 'PENDING' ?
-                                        `${(selectedPollForStatus.moderationLogs || []).filter(l => l.action === 'APPROVE').length}/2 Approvals Received` :
-                                        'Action required'}
-                                </p>
-                            </div>
-                            <div className="text-2xl">
-                                {selectedPollForStatus.status === 'PENDING' ? <Clock className="w-6 h-6" /> : <ShieldAlert className="w-6 h-6" />}
-                            </div>
-                        </div>
-
-                        {/* Timeline */}
-                        <div className="p-6 relative">
-                            <div className="absolute left-[31px] top-10 bottom-10 w-0.5 bg-gray-100 dark:bg-gray-800"></div>
-
-                            <div className="space-y-8">
-                                {/* Initial Submission */}
-                                <div className="relative pl-12">
-                                    <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-blue-500 border-4 border-white dark:border-gray-900 z-10"></div>
-                                    <p className="text-[10px] text-gray-400 font-bold mb-1">{selectedPollForStatus.createdAt ? new Date(selectedPollForStatus.createdAt).toLocaleString() : ''}</p>
-                                    <p className="font-bold text-gray-900 dark:text-gray-100">Poll Submitted</p>
-                                    <p className="text-xs text-gray-500">You submitted this poll for review.</p>
-                                </div>
-
-                                {/* Moderation Logs */}
-                                {(selectedPollForStatus.moderationLogs || []).slice().reverse().map((log) => (
-                                    <div key={log.id} className="relative pl-12 animate-fade-in">
-                                        <div className={`absolute left-0 top-0 w-8 h-8 rounded-full border-4 border-white dark:border-gray-900 z-10 flex items-center justify-center
-                                            ${log.action === 'APPROVE' ? 'bg-green-500' :
-                                                log.action === 'REJECT' ? 'bg-red-500' : 'bg-orange-500'}`}>
-                                            {log.action === 'APPROVE' ? <ShieldCheck className="w-4 h-4 text-white" /> :
-                                                log.action === 'REJECT' ? <ShieldAlert className="w-4 h-4 text-white" /> : <FileEdit className="w-4 h-4 text-white" />}
-                                        </div>
-                                        <p className="text-[10px] text-gray-400 font-bold mb-1">{new Date(log.createdAt).toLocaleString()}</p>
-                                        <p className="font-bold text-gray-900 dark:text-gray-100">
-                                            {log.action === 'APPROVE' ? 'Approved' : log.action === 'REJECT' ? 'Rejected' : 'Requested Edit'}
-                                        </p>
-                                        <p className="text-[10px] text-gray-400 mb-2 uppercase tracking-widest font-bold">Moderator ID: {log.moderatorId}</p>
-                                        {log.comment && (
-                                            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 italic text-gray-600 dark:text-gray-400 text-xs">
-                                                "{log.comment}"
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-
-                                {selectedPollForStatus.status === 'PENDING' && (
-                                    <div className="relative pl-12">
-                                        <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 border-4 border-white dark:border-gray-900 z-10 flex items-center justify-center">
-                                            <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600 animate-pulse"></div>
-                                        </div>
-                                        <p className="font-bold text-gray-400 italic text-sm mt-1">Waiting for final review...</p>
-                                    </div>
-                                )}
-
-                                {selectedPollForStatus.status === 'REJECTED' && (
-                                    <div className="relative pl-12">
-                                        <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 border-4 border-white dark:border-gray-900 z-10 flex items-center justify-center">
-                                            <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                                        </div>
-                                        <p className="font-bold text-gray-400 italic text-sm mt-1">Process Stopped</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Snapshot Preview */}
-                        <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
-                            <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 text-center mb-6">Snapshot Preview</p>
-                            <div className="max-w-md mx-auto pointer-events-none opacity-80 scale-95 origin-top transform">
-                                <PollCard
-                                    poll={selectedPollForStatus}
-                                    currentUser={currentUser}
-                                    isLoggedIn={true}
-                                    onNavigate={() => { }}
-                                    onVote={() => { }}
-                                    requireLogin={() => { }}
-                                    showToast={() => { }}
-                                    readOnly={true}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {selectedPollForStatus.status === 'CHANGES_REQUESTED' && (
-                        <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
-                            <button
-                                onClick={() => {
-                                    onNavigate('addPoll', selectedPollForStatus);
-                                    setSelectedPollForStatus(null);
-                                }}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center space-x-2"
-                            >
-                                <FileEdit className="w-5 h-5" />
-                                <span>Edit & Resubmit</span>
-                            </button>
-                        </div>
-                    )}
                 </div>
             )}
         </div>

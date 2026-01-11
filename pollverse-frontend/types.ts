@@ -45,7 +45,7 @@ export interface Poll {
   creatorId?: number; // Backend field
   question: string;
   description?: string;
-  pollType: 'multiple_choice' | 'survey' | 'binary' | 'image' | 'ranking' | 'slider' | 'swipe';
+  pollType: 'multiple_choice' | 'survey' | 'binary' | 'image' | 'ranking' | 'slider' | 'swipe' | 'petition';
   options: PollOption[];
   votes: Record<string | number, number>;
   comments: Comment[];
@@ -61,11 +61,13 @@ export interface Poll {
   // Expiration Logic
   expiresAt?: Date;
   maxVotes?: number;
+  goal_threshold?: number;
   // Social state for current user
   userInteraction?: 'like' | 'dislike' | null;
   userVote?: string | number | null;
   status: 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'CHANGES_REQUESTED';
   createdAt: Date;
+  updatedAt?: Date;
   moderationLogs?: ModerationLog[];
 }
 
@@ -74,7 +76,7 @@ export interface ModerationLog {
   pollId: number;
   moderatorId: number;
   moderator: User;
-  action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES';
+  action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'RESUBMITTED';
   comment?: string;
   createdAt: string; // Date string from JSON
 }
