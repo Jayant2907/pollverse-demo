@@ -242,7 +242,7 @@ const PollStatusDashboard: React.FC<PollStatusDashboardProps> = ({ polls, curren
             {/* Right Column: Sticky Preview (40%) */}
             <div className="hidden md:flex w-2/5 bg-gray-50 dark:bg-gray-900 items-center justify-center p-8 sticky top-0 h-full">
                 {/* Handset Frame */}
-                <div className="relative w-[320px] h-[640px] bg-black rounded-[3rem] shadow-2xl border-4 border-gray-800 overflow-hidden ring-4 ring-gray-200 dark:ring-gray-800 transform scale-90 lg:scale-100 transition-transform">
+                <div className="relative w-[360px] h-[720px] bg-black rounded-[3rem] shadow-2xl border-4 border-gray-800 overflow-hidden ring-4 ring-gray-200 dark:ring-gray-800 transform scale-90 lg:scale-100 transition-transform">
                     {/* Notch/Dynamic Island */}
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-20"></div>
 

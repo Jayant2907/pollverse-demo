@@ -106,14 +106,40 @@ const ReviewQueuePage: React.FC<ReviewQueuePageProps> = ({ currentUser, onBack, 
     return (
         <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-950">
             {/* Header */}
-            <header className="flex-shrink-0 flex items-center p-4 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+            <header className="flex-shrink-0 flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
                 <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
                     <ChevronLeftIcon />
                 </button>
-                <div className="flex-grow flex items-center justify-center space-x-2 mr-10 text-gray-800 dark:text-gray-100">
-                    <ShieldCheck className="w-5 h-5 text-blue-600" />
-                    <h2 className="text-lg font-bold">Review Queue ({currentIndex + 1}/{pendingPolls.length})</h2>
+
+                <div className="flex items-center space-x-6">
+                    <button
+                        disabled={currentIndex === 0}
+                        onClick={() => setCurrentIndex(prev => prev - 1)}
+                        className="p-2 disabled:text-gray-200 dark:disabled:text-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all"
+                    >
+                        <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
+
+                    <div className="flex flex-col items-center">
+                        <div className="flex items-center space-x-2 text-gray-800 dark:text-gray-100">
+                            <ShieldCheck className="w-5 h-5 text-blue-600" />
+                            <h2 className="text-lg font-bold leading-none">Review Queue</h2>
+                        </div>
+                        <span className="text-[11px] font-black text-blue-600/60 uppercase tracking-tighter mt-1">
+                            {currentIndex + 1} of {pendingPolls.length}
+                        </span>
+                    </div>
+
+                    <button
+                        disabled={currentIndex === pendingPolls.length - 1}
+                        onClick={() => setCurrentIndex(prev => prev + 1)}
+                        className="p-2 disabled:text-gray-200 dark:disabled:text-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all rotate-180"
+                    >
+                        <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
                 </div>
+
+                <div className="w-10"></div> {/* Spacer for balance */}
             </header>
 
             {/* Content Swiper Style */}

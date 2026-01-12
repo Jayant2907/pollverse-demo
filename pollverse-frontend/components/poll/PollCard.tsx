@@ -256,7 +256,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                             className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                         >
                             <span> View Signature Wall</span>
-                            <ChevronLeftIcon /> {/* Rotated by default in other places, maybe need to check rotation logic */}
+                            <ChevronLeftIcon className="w-4 h-4 rotate-180" />
                         </button>
 
                         {!userVote ? (
@@ -481,8 +481,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
 
             {/* Action Bar (Footer) */}
             <footer className="flex-shrink-0 px-4 py-3 bg-white dark:bg-black border-t border-gray-50 dark:border-gray-900">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-6">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-4 sm:gap-6">
                         <button
                             onClick={() => handleInteract('like')}
                             className={`flex flex-col items-center gap-1 group ${interaction === 'like' ? 'text-pink-500' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
@@ -524,13 +524,13 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         <button onClick={handleShare} className="p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-gray-900 rounded-full">
                             <ShareIcon />
                         </button>
                         {poll.pollType !== 'swipe' && (
-                            <button onClick={() => onNavigate('results', poll)} className="flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-black rounded-full text-sm font-bold shadow-lg active:scale-95 transition-transform">
-                                <ChartBarIcon />
+                            <button onClick={() => onNavigate('results', poll)} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-black rounded-full text-[13px] font-bold shadow-lg active:scale-95 transition-transform whitespace-nowrap">
+                                <ChartBarIcon className="w-4 h-4" />
                                 <span>Results</span>
                             </button>
                         )}
