@@ -440,7 +440,7 @@ function App() {
     }
 
     const isDetailPage = page.name !== 'feed';
-    const isFullPage = ['reviewQueue', 'admin', 'survey'].includes(page.name);
+    const isFullPage = ['reviewQueue', 'admin', 'survey', 'profile'].includes(page.name);
 
     const topHashtags = useMemo(() => {
         const tagCounts: Record<string, number> = {};
