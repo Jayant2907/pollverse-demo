@@ -9,5 +9,7 @@ export class CreatePollDto {
     goal_threshold?: number;
     swipeResults?: any;
     expiresAt?: Date;
+    scheduledAt?: Date;
     maxVotes?: number;
+    status?: string;
 }

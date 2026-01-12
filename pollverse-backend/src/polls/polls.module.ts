@@ -6,6 +6,7 @@ import { Poll } from './entities/poll.entity';
 import { Comment } from './entities/comment.entity';
 import { Vote } from './entities/vote.entity';
 import { ModerationLog } from './entities/moderation-log.entity';
+import { SchedulingService } from './scheduling.service';
 
 
 import { Interaction } from '../users/entities/interaction.entity';
@@ -16,6 +17,6 @@ import { PointsModule } from '../points/points.module';
   imports: [TypeOrmModule.forFeature([Poll, Comment, Vote, Interaction, ModerationLog]), NotificationsModule, PointsModule],
 
   controllers: [PollsController],
-  providers: [PollsService],
+  providers: [PollsService, SchedulingService],
 })
 export class PollsModule { }

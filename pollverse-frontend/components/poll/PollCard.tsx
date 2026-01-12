@@ -490,7 +490,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                             <div className={`p-2 rounded-full group-active:scale-90 transition-all ${interaction === 'like' ? 'bg-pink-50 dark:bg-pink-900/20' : ''}`}>
                                 <ThumbUpIcon active={interaction === 'like'} />
                             </div>
-                            <span className="text-xs font-bold">{likesCount}</span>
+                            <span
+                                onClick={(e) => { e.stopPropagation(); handleShowInteractors(e, 'like'); }}
+                                className="text-xs font-bold hover:underline cursor-pointer"
+                            >
+                                {likesCount}
+                            </span>
                         </button>
 
                         <button
@@ -500,7 +505,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
                             <div className={`p-2 rounded-full group-active:scale-90 transition-all ${interaction === 'dislike' ? 'bg-gray-100 dark:bg-gray-800' : ''}`}>
                                 <ThumbDownIcon active={interaction === 'dislike'} />
                             </div>
-                            <span className="text-xs font-bold">{dislikesCount}</span>
+                            <span
+                                onClick={(e) => { e.stopPropagation(); handleShowInteractors(e, 'dislike'); }}
+                                className="text-xs font-bold hover:underline cursor-pointer"
+                            >
+                                {dislikesCount}
+                            </span>
                         </button>
 
                         <button

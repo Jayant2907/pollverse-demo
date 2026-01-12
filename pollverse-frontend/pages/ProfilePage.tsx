@@ -16,12 +16,13 @@ interface ProfilePageProps {
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onLogout, currentUser, onToggleFollow, allPolls }) => {
-    const [activeTab, setActiveTab] = useState<'created' | 'voted' | 'status'>('created');
+    const [activeTab, setActiveTab] = useState<'created' | 'voted' | 'status' | 'drafts'>('created');
     const [statusPolls, setStatusPolls] = useState<Poll[]>([]);
+    const [draftsPolls, setDraftsPolls] = useState<Poll[]>([]);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     const [selectedPollForStatus, setSelectedPollForStatus] = useState<Poll | null>(null);
 
-    const isMainUser = user.id === currentUser.id;
+    const isMainUser = currentUser && (String(user.id) === String(currentUser.id));
     const isFollowing = currentUser.following.some(id => String(id) === String(user.id));
 
     const userPolls = allPolls.filter(p => p.creator?.id === user.id);
@@ -65,11 +66,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
             PollService.getFeed({ creatorId: Number(currentUser.id), userId: Number(currentUser.id) })
                 .then(data => {
                     const now = new Date();
-                    const nonPublishedOrScheduled = data.filter(p =>
-                        p.status !== 'PUBLISHED' ||
-                        (p.scheduledAt && new Date(p.scheduledAt) > now)
-                    );
+                    const nonPublishedOrScheduled = data.filter(p => {
+                        const isPublished = p.status === 'PUBLISHED';
+                        const isScheduledFuture = isPublished && p.scheduledAt && new Date(p.scheduledAt) > now;
+
+                        // Show if it's PENDING, REJECTED, CHANGES_REQUESTED or SCHEDULED
+                        // OR if it's a PUBLISHED one that is actually a future schedule (for UI display)
+                        return (p.status !== 'PUBLISHED' && p.status !== 'DRAFT') || isScheduledFuture;
+                    });
                     setStatusPolls(nonPublishedOrScheduled);
+
+                    PollService.getFeed({ category: 'Drafts', creatorId: Number(currentUser.id), userId: Number(currentUser.id) })
+                        .then(drafts => setDraftsPolls(drafts));
+
                     setIsLoadingStatus(false);
                 });
         }
@@ -186,6 +195,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                                 )}
                             </button>
                         )}
+                        {isMainUser && (
+                            <button onClick={() => setActiveTab('drafts')} className={`flex-1 p-3 font-semibold text-center transition-colors flex items-center justify-center space-x-1 ${activeTab === 'drafts' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400'}`}>
+                                <span>Drafts</span>
+                                {draftsPolls.length > 0 && (
+                                    <span className="bg-gray-400 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold">
+                                        {draftsPolls.length}
+                                    </span>
+                                )}
+                            </button>
+                        )}
                     </div>
 
                     <div className={activeTab === 'status' ? '' : 'p-4'}>
@@ -213,6 +232,30 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onBack, onNavigate, onL
                                         <p className="font-semibold truncate">{poll.question}</p>
                                     </div>
                                 )) : <div className="col-span-2 text-center text-gray-400 p-8">Voted polls will appear here.</div>}
+                            </div>
+                        )}
+                        {activeTab === 'drafts' && (
+                            <div className="space-y-3">
+                                {draftsPolls.length > 0 ? draftsPolls.map(poll => (
+                                    <div key={poll.id} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-sm relative overflow-hidden animate-fade-in-up">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded bg-gray-100 text-gray-700">
+                                                Draft
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 font-medium">{poll.createdAt ? new Date(poll.createdAt).toLocaleDateString() : ''}</span>
+                                        </div>
+                                        <h4 className="font-bold text-gray-900 dark:text-gray-100 mb-1">{poll.question}</h4>
+                                        <p className="text-xs text-gray-500 line-clamp-1 mb-3">{poll.description || 'No description'}</p>
+                                        <button
+                                            onClick={() => onNavigate('addPoll', poll)}
+                                            className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center"
+                                        >
+                                            Edit & Publish <span className="ml-1">→</span>
+                                        </button>
+                                    </div>
+                                )) : (
+                                    <div className="text-center text-gray-400 p-8">No drafts saved.</div>
+                                )}
                             </div>
                         )}
                         {activeTab === 'status' && (

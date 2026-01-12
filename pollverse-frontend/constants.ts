@@ -2,7 +2,9 @@ import { Poll, User } from './types';
 
 const now = new Date();
 
-export const CATEGORIES = ['For You', 'Following', 'Trending', 'Sports', 'Technology', 'Movies', 'Travel', 'Food', 'Business'];
+export const NAV_CATEGORIES = ['For You', 'Following', 'Trending', 'Sports', 'Technology', 'Movies', 'Travel', 'Food', 'Business'];
+export const POLL_CATEGORIES = ['Sports', 'Technology', 'Movies', 'Travel', 'Food', 'Business', 'Other'];
+export const CATEGORIES = NAV_CATEGORIES; // For backward compatibility
 
 export const MOCK_USER: User = {
   id: 1,
