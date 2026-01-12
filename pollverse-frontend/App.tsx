@@ -10,7 +10,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { PageState, Poll, User } from './types';
 import { MOCK_USER, CATEGORIES } from './constants';
 import {
-    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, TrophyIcon, ShieldCheck
+    HomeIcon, UserIcon, PlusIcon, SearchIcon, BellIcon, AppLogo, TrophyIcon, ShieldCheck, XIcon
 } from './components/Icons';
 
 // Layout
@@ -37,6 +37,7 @@ import AdminPage from './pages/AdminPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import PointsLedgerPage from './pages/PointsLedgerPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
+import ExplorePage from './pages/ExplorePage';
 
 
 function App() {
@@ -326,6 +327,11 @@ function App() {
             try {
                 // Determine filters
                 const filters: any = {};
+                if (activeCategory === 'Following' && !isLoggedIn) {
+                    requireLogin(() => setActiveCategory('Following'));
+                    setActiveCategory('For You');
+                    return;
+                }
                 if (activeCategory !== 'For You') filters.category = activeCategory;
                 if (searchQuery.trim() !== '') filters.search = searchQuery;
                 if (isLoggedIn) filters.userId = currentUser.id;
@@ -423,6 +429,8 @@ function App() {
                 return <LeaderboardPage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} />;
             case 'pointsLedger':
                 return <PointsLedgerPage onBack={() => handleNavigation('profile', currentUser)} onNavigate={handleNavigation} currentUser={currentUser} />;
+            case 'explore':
+                return <ExplorePage onNavigate={handleNavigation} setSearchQuery={setSearchQuery} trendingTags={topHashtags} />;
             case 'reviewQueue':
                 return <ReviewQueuePage onBack={() => setPage({ name: 'feed' })} onNavigate={handleNavigation} currentUser={currentUser} showToast={showToast} setGlobalLoading={setGlobalLoading} />;
             default:
@@ -432,6 +440,7 @@ function App() {
     }
 
     const isDetailPage = page.name !== 'feed';
+    const isFullPage = ['reviewQueue', 'admin', 'survey'].includes(page.name);
 
     const topHashtags = useMemo(() => {
         const tagCounts: Record<string, number> = {};
@@ -512,20 +521,38 @@ function App() {
 
                         {/* Category Filter (Visible on both, scroller) */}
                         {page.name === 'feed' && (
-                            <div className="overflow-x-auto py-2.5 px-4 flex space-x-2.5 scrollbar-hide border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-black/95 backdrop-blur-md sticky top-[60px] md:top-[51px] z-30">
-                                {CATEGORIES.map(category => (
-                                    <button
-                                        key={category}
-                                        onClick={() => setActiveCategory(category)}
-                                        className={`px-3.5 py-1 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${activeCategory === category
-                                            ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
-                                            : 'bg-gray-100/80 dark:bg-gray-800/80 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
-                                            }`}
-                                    >
-                                        {category}
-                                    </button>
-                                ))}
-                            </div>
+                            <>
+                                <div className="overflow-x-auto py-2.5 px-4 flex space-x-2.5 scrollbar-hide border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-black/95 backdrop-blur-md sticky top-[60px] md:top-[51px] z-30">
+                                    {CATEGORIES.map(category => (
+                                        <button
+                                            key={category}
+                                            onClick={() => setActiveCategory(category)}
+                                            className={`px-3.5 py-1 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${activeCategory === category
+                                                ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
+                                                : 'bg-gray-100/80 dark:bg-gray-800/80 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            {category}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {searchQuery && (
+                                    <div className="px-4 py-3 flex items-center justify-between bg-blue-50 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Searching:</span>
+                                            <span className="text-sm font-black text-blue-800 dark:text-blue-200">"{searchQuery}"</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setSearchQuery('')}
+                                            className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full transition-colors"
+                                            title="Clear search"
+                                        >
+                                            <XIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {/* Content Area */}
@@ -555,12 +582,12 @@ function App() {
                         </div>
 
                         {/* Dynamic Content (Modal-like) */}
-                        <div className={`fixed inset-0 z-[60] flex items-center justify-center p-0 md:p-4 transition-all duration-300 ${isDetailPage ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                        <div className={`fixed inset-0 z-[60] flex items-center justify-center p-0 ${isFullPage ? '' : 'md:p-4'} transition-all duration-300 ${isDetailPage ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                             <div
                                 onClick={() => setPage({ name: 'feed' })}
                                 className="absolute inset-0 bg-black/40 backdrop-blur-[2px] cursor-pointer"
                             ></div>
-                            <div className={`bg-white dark:bg-black w-full h-full md:h-[85vh] md:max-w-2xl md:rounded-3xl shadow-2xl relative overflow-hidden transition-all duration-500 transform ${isDetailPage ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-10 scale-95 opacity-0'}`}>
+                            <div className={`bg-white dark:bg-black w-full h-full ${isFullPage ? '' : 'md:h-[85vh] md:max-w-2xl md:rounded-3xl'} shadow-2xl relative overflow-hidden transition-all duration-500 ${isDetailPage ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-10 scale-95 opacity-0'} ${!isDetailPage ? 'pointer-events-none' : ''}`}>
                                 <div className="h-full overflow-hidden flex flex-col">
                                     {renderDetailContent()}
                                 </div>

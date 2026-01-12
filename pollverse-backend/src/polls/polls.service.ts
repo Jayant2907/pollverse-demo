@@ -32,30 +32,30 @@ export class PollsService {
   ) { }
 
   async create(createPollDto: CreatePollDto) {
+    const status = createPollDto.status || 'PENDING';
     const poll = this.pollsRepository.create({
       ...createPollDto,
       votes: {},
-      status: 'PENDING',
+      status: status,
       createdAt: new Date(),
     });
 
-    // Check if user qualifies for moderation bypass (e.g. > 2000 points)
-    if (createPollDto.creatorId) {
-      const userRank = await this.pointsService.getUserRank(createPollDto.creatorId);
-      if (userRank && (userRank.points >= 2000 || userRank.rank <= 10)) {
-        poll.status = 'PUBLISHED';
+    if (status !== 'DRAFT') {
+      // Check if user qualifies for moderation bypass (e.g. > 2000 points)
+      if (createPollDto.creatorId) {
+        const userRank = await this.pointsService.getUserRank(createPollDto.creatorId);
+        if (userRank && (userRank.points >= 2000 || userRank.rank <= 10)) {
+          poll.status = poll.scheduledAt ? 'SCHEDULED' : 'PUBLISHED';
+        }
       }
     }
 
     const savedPoll = await this.pollsRepository.save(poll);
 
-    // Update user's pollsCount
-    if (savedPoll.creatorId) {
+    // Update user's pollsCount if it's not a draft
+    if (savedPoll.creatorId && savedPoll.status !== 'DRAFT') {
       await this.pollsRepository.manager.getRepository('User').increment({ id: savedPoll.creatorId }, 'pollsCount', 1);
-    }
-
-    // Award Points for Creation
-    if (savedPoll.creatorId) {
+      // Award Points for Creation
       await this.pointsService.awardPoints(savedPoll.creatorId, 50, 'CREATE_POLL', savedPoll.id, { pollId: savedPoll.id });
     }
 
@@ -93,8 +93,7 @@ export class PollsService {
         // Here we return empty by adding a condition that's never true
         qb.andWhere('1 = 0');
       }
-    } else if (query.category && !['For You', 'Following', 'Trending', 'Pending'].includes(query.category)) {
-
+    } else if (query.category && !['For You', 'Following', 'Trending', 'Pending', 'Drafts'].includes(query.category)) {
       qb.andWhere('poll.category = :category', { category: query.category });
     }
 
@@ -119,14 +118,11 @@ export class PollsService {
     // Status Filtering
     if (query.category === 'Pending') {
       qb.andWhere('poll.status = :status', { status: 'PENDING' });
-      // Clear category filter if it was applied erroneously by line 82 logic (if 'Pending' is not in exclude list)
-      // Actually line 81 logic: if category is 'Pending', it adds `poll.category = 'Pending'`.
-      // We assume 'Pending' is a special UI category, not a DB category.
-      // So we might need to adjust line 81 or just Ensure 'Pending' isn't checked there.
-      // Ideally, the Controller handles this mapping.
+    } else if (query.category === 'Drafts' && query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {
+      qb.andWhere('poll.status = :status', { status: 'DRAFT' });
     } else if (query.creatorId) {
       if (query.userId && Number(query.userId) === Number(query.creatorId)) {
-        // Creator viewing their own profile - show all
+        // Creator viewing their own profile - show all except potentially others' drafts
       } else {
         // Viewing someone else's profile - show only published
         qb.andWhere('poll.status = :status', { status: 'PUBLISHED' });
@@ -141,7 +137,7 @@ export class PollsService {
     if (query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {
       // No time filter for own profile
     } else {
-      qb.andWhere('(poll.scheduledAt IS NULL OR poll.scheduledAt <= CURRENT_TIMESTAMP)');
+      qb.andWhere('(poll.scheduledAt IS NULL OR poll.scheduledAt <= :now)', { now: new Date() });
     }
 
     if (query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {

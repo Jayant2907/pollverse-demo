@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Poll, PollOption } from '../types';
-import { CATEGORIES } from '../constants';
+import { CATEGORIES, POLL_CATEGORIES } from '../constants';
 import { ChevronLeftIcon, ListIcon, ImageIcon, RankIcon, SliderIcon, HeartIcon, ChartBarIcon, ShieldCheck } from '../components/Icons';
 
 interface AddPollPageProps {
@@ -16,7 +16,7 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
     const [question, setQuestion] = useState(initialData?.question || '');
     const [description, setDescription] = useState(initialData?.description || '');
     const [tags, setTags] = useState(initialData?.tags?.join(' ') || '');
-    const [category, setCategory] = useState(initialData?.category || CATEGORIES[1]);
+    const [category, setCategory] = useState(initialData?.category || POLL_CATEGORIES[0]);
     const [options, setOptions] = useState<PollOption[]>(
         initialData?.options || [
             { id: 1, text: '' },
@@ -79,12 +79,12 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
         return options.every(opt => opt.text.trim());
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = (status: string = 'PENDING') => {
         if (!isFormValid()) return;
 
         const finalOptions = pollType === 'slider' ? options.slice(0, 2) : options;
 
-        const newPollData: Partial<Poll> = {
+        const pollData: Partial<Poll> = {
             question,
             description,
             pollType,
@@ -97,9 +97,9 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
             maxVotes: maxVotes ? parseInt(maxVotes) : undefined,
             goal_threshold: (pollType === 'petition' && goalThreshold) ? parseInt(goalThreshold) : undefined,
             id: initialData?.id,
+            status: status as any,
         };
-
-        onPollCreate(newPollData);
+        onPollCreate(pollData);
     };
 
     const InputLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">{children}</label>;
@@ -341,15 +341,26 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
                 </section>
             </main>
 
-            <footer className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-                <button onClick={handleSubmit} disabled={!isFormValid() || loading} className="w-full p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+            <footer className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black flex gap-3">
+                <button
+                    onClick={() => handleSubmit('DRAFT')}
+                    disabled={!isFormValid() || loading}
+                    className="flex-1 p-4 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors flex items-center justify-center"
+                >
+                    Save Draft
+                </button>
+                <button
+                    onClick={() => handleSubmit('PENDING')}
+                    disabled={!isFormValid() || loading}
+                    className="flex-[2] p-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                >
                     {loading ? (
                         <>
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
                             {initialData?.id ? 'Updating...' : 'Posting...'}
                         </>
                     ) : (
-                        initialData?.id ? 'Update & Resubmit' : 'Post Poll'
+                        <>{initialData?.id ? 'Update Poll' : 'Post Poll'}</>
                     )}
                 </button>
             </footer>

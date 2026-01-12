@@ -66,7 +66,7 @@ export interface Poll {
   // Social state for current user
   userInteraction?: 'like' | 'dislike' | null;
   userVote?: string | number | null;
-  status: 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'CHANGES_REQUESTED';
+  status: 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'CHANGES_REQUESTED' | 'DRAFT' | 'SCHEDULED';
   createdAt: Date;
   updatedAt?: Date;
   moderationLogs?: ModerationLog[];
