@@ -1,24 +1,34 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+  Unique,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Comment } from './comment.entity';
 
 @Entity()
 @Unique(['userId', 'commentId'])
 export class CommentLike {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column()
-    userId: number;
+  @Column()
+  userId: number;
 
-    @Column()
-    commentId: number;
+  @Column()
+  commentId: number;
 
-    @ManyToOne(() => User)
-    @JoinColumn({ name: 'userId' })
-    user: User;
+  @Column({ type: 'varchar', default: 'like' })
+  type: string;
 
-    @ManyToOne(() => Comment)
-    @JoinColumn({ name: 'commentId' })
-    comment: Comment;
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'userId' })
+  user: User;
+
+  @ManyToOne(() => Comment)
+  @JoinColumn({ name: 'commentId' })
+  comment: Comment;
 }

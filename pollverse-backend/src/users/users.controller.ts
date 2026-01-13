@@ -1,11 +1,19 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
@@ -42,7 +50,7 @@ export class UsersController {
   setInteraction(
     @Param('id') id: string,
     @Param('pollId') pollId: string,
-    @Body() body: { type: 'like' | 'dislike' | null }
+    @Body() body: { type: 'like' | 'dislike' | null },
   ) {
     return this.usersService.setInteraction(+id, +pollId, body.type);
   }
@@ -75,12 +83,16 @@ export class UsersController {
 
   // ============ SIMPLE LOGIN (No Auth for now) ============
   @Post('login')
-  async login(@Body() body: { email: string; phoneNumber?: string; password?: string }) {
+  async login(
+    @Body() body: { email: string; phoneNumber?: string; password?: string },
+  ) {
     let user = await this.usersService.findByEmail(body.email);
     if (user) {
       // If user exists, but doesn't have a phone number and one was provided, update it
       if (!user.phoneNumber && body.phoneNumber) {
-        await this.usersService.update(user.id, { phoneNumber: body.phoneNumber });
+        await this.usersService.update(user.id, {
+          phoneNumber: body.phoneNumber,
+        });
         user = await this.usersService.findOne(user.id);
       }
       return { success: true, user: { ...user, password: undefined } };

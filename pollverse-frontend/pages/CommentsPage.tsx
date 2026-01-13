@@ -3,6 +3,7 @@ import { Poll, Comment, User } from '../types';
 import { timeAgo } from '../constants';
 import { ChevronLeftIcon, HeartIcon, PaperAirplaneIcon, XIcon } from '../components/Icons';
 import { CommentService } from '../services/CommentService';
+import ReactionPicker from '../components/ui/ReactionPicker';
 
 interface CommentsPageProps {
     poll: Poll;
@@ -15,10 +16,10 @@ interface CommentsPageProps {
 const CommentItem: React.FC<{
     comment: Comment;
     onReply: (c: Comment) => void;
-    onLike: (c: Comment) => void;
+    onReact: (c: Comment, emoji: string) => void;
     pollCreatorId?: number | string;
     isReply?: boolean;
-}> = ({ comment, onReply, onLike, pollCreatorId, isReply }) => {
+}> = ({ comment, onReply, onReact, pollCreatorId, isReply }) => {
     const isAuthor = pollCreatorId && String(comment.user?.id) === String(pollCreatorId);
 
     return (
@@ -45,14 +46,24 @@ const CommentItem: React.FC<{
                         <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed break-words">{comment.text}</p>
                     </div>
 
-                    <div className="flex items-center space-x-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 mt-1.5 px-2">
-                        <button
-                            onClick={() => onLike(comment)}
-                            className={`flex items-center space-x-1 transition-colors ${comment.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
-                        >
-                            <HeartIcon className={`h-3.5 w-3.5 ${comment.isLiked ? 'animate-bounce' : ''}`} />
-                            <span>{comment.likes || 0}</span>
-                        </button>
+                    <div className="flex items-center gap-3 text-[11px] font-bold text-gray-400 mt-1.5 px-2">
+                        <ReactionPicker onSelect={(emoji) => onReact(comment, emoji)} currentReaction={comment.userInteraction}>
+                            <button
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all active:scale-95 ${comment.userInteraction
+                                        ? 'bg-red-50 dark:bg-red-900/20 text-red-500'
+                                        : 'hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600'
+                                    }`}
+                            >
+                                {comment.userInteraction && !['like', '👍'].includes(comment.userInteraction) ? (
+                                    <span className="text-sm animate-fade-in-scale">{comment.userInteraction}</span>
+                                ) : (
+                                    <HeartIcon className={`h-3.5 w-3.5 ${comment.userInteraction === 'like' ? 'fill-red-500 text-red-500 animate-bounce' : ''}`} />
+                                )}
+                                <span className="text-xs font-black">
+                                    {Object.values(comment.reactions || {}).reduce((a, b) => a + b, 0) || comment.likes || 0}
+                                </span>
+                            </button>
+                        </ReactionPicker>
                         {!isReply && (
                             <button onClick={() => onReply(comment)} className="hover:text-blue-600 transition-colors uppercase tracking-widest text-[10px]">Reply</button>
                         )}
@@ -68,7 +79,7 @@ const CommentItem: React.FC<{
                             key={reply.id}
                             comment={reply}
                             onReply={onReply}
-                            onLike={onLike}
+                            onReact={onReact}
                             pollCreatorId={pollCreatorId}
                             isReply={true}
                         />
@@ -100,19 +111,38 @@ const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, r
         fetchComments();
     }, [poll.id, currentUser?.id]);
 
-    const handleLikeComment = async (comment: Comment) => {
+    const handleReactComment = async (comment: Comment, emoji: string) => {
         if (!isLoggedIn) {
-            requireLogin(() => handleLikeComment(comment));
+            requireLogin(() => handleReactComment(comment, emoji));
             return;
         }
 
-        const isLiked = comment.isLiked;
+        const previousInteraction = comment.userInteraction;
 
         // Optimistic UI
         const updateCommentInList = (list: Comment[]): Comment[] => {
             return list.map(c => {
                 if (String(c.id) === String(comment.id)) {
-                    return { ...c, isLiked: !isLiked, likes: isLiked ? Math.max(0, c.likes - 1) : c.likes + 1 };
+                    const newReactions = { ...(c.reactions || {}) };
+                    let newLikes = c.likes;
+                    let newUserInteraction: string | null = emoji;
+
+                    if (previousInteraction === emoji) {
+                        // Toggle Off
+                        newUserInteraction = null;
+                        if (newReactions[emoji] > 0) newReactions[emoji]--;
+                        if (emoji === 'like' || emoji === '👍') newLikes = Math.max(0, newLikes - 1);
+                    } else {
+                        // Switch or New
+                        if (previousInteraction && newReactions[previousInteraction] > 0) {
+                            newReactions[previousInteraction]--;
+                            if (previousInteraction === 'like' || previousInteraction === '👍') newLikes = Math.max(0, newLikes - 1);
+                        }
+                        newReactions[emoji] = (newReactions[emoji] || 0) + 1;
+                        if (emoji === 'like' || emoji === '👍') newLikes++;
+                    }
+
+                    return { ...c, userInteraction: newUserInteraction, reactions: newReactions, likes: newLikes, isLiked: newUserInteraction === 'like' };
                 }
                 if (c.replies) {
                     return { ...c, replies: updateCommentInList(c.replies) };
@@ -124,14 +154,9 @@ const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, r
         setComments(prev => updateCommentInList(prev));
 
         try {
-            if (isLiked) {
-                await CommentService.unlikeComment(Number(comment.id), Number(currentUser.id));
-            } else {
-                await CommentService.likeComment(Number(comment.id), Number(currentUser.id));
-            }
+            await CommentService.reactToComment(Number(comment.id), Number(currentUser.id), emoji);
         } catch (error) {
-            console.error("Failed to like/unlike comment", error);
-            // Rollback if failed? For now keep it simple
+            console.error("Failed to react to comment", error);
             fetchComments();
         }
     };
@@ -215,7 +240,7 @@ const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, r
                             key={comment.id}
                             comment={comment}
                             onReply={(c) => setReplyingTo(c)}
-                            onLike={handleLikeComment}
+                            onReact={handleReactComment}
                             pollCreatorId={poll.creator?.id || poll.creatorId}
                         />
                     ))

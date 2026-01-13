@@ -41,22 +41,18 @@ export const CommentService = {
         }
     },
 
-    likeComment: async (commentId: number, userId: number) => {
-        const response = await fetch(`${API_URL}/comments/${commentId}/like`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId })
-        });
-        return response.json();
-    },
-
-    unlikeComment: async (commentId: number, userId: number) => {
-        const response = await fetch(`${API_URL}/comments/${commentId}/like`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId })
-        });
-        return response.json();
+    reactToComment: async (commentId: number, userId: number, type: string) => {
+        try {
+            const response = await fetch(`${API_URL}/comments/${commentId}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, type })
+            });
+            return response.json();
+        } catch (error) {
+            console.error("Failed to react to comment:", error);
+            throw error;
+        }
     },
 
     seedComments: async (commentsData: { pollId: number; userId: number; text: string }[]) => {

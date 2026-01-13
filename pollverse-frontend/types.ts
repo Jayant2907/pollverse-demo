@@ -18,6 +18,7 @@ export interface User {
   interests?: string[];
   dateOfBirth?: Date;
   socialLinks?: { twitter?: string; instagram?: string; linkedin?: string; github?: string };
+  interactionType?: string;
 }
 
 
@@ -31,6 +32,8 @@ export interface Comment {
   replyCount?: number;
   replies?: Comment[];
   isLiked?: boolean;
+  userInteraction?: string | null;
+  reactions?: Record<string, number>;
 }
 
 export interface PollOption {
@@ -64,6 +67,7 @@ export interface Poll {
   commentsCount?: number;
   likes: number;
   dislikes: number;
+  reactions?: Record<string, number>;
   category: string;
   tags: string[];
   timestamp: Date;
@@ -76,7 +80,7 @@ export interface Poll {
   maxVotes?: number;
   goal_threshold?: number;
   // Social state for current user
-  userInteraction?: 'like' | 'dislike' | null;
+  userInteraction?: string | null;
   userVote?: string | number | null;
   status: 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'CHANGES_REQUESTED' | 'DRAFT' | 'SCHEDULED';
   createdAt: Date;

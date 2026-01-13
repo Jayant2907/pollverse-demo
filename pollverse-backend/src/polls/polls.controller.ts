@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
 import { PollsService } from './polls.service';
 import { CreatePollDto } from './dto/create-poll.dto';
 import { UpdatePollDto } from './dto/update-poll.dto';
@@ -18,11 +27,20 @@ export class PollsController {
   }
 
   @Get()
-  findAll(@Query() query: { category?: string; search?: string; tag?: string; userId?: string; creatorId?: string }) {
+  findAll(
+    @Query()
+    query: {
+      category?: string;
+      search?: string;
+      tag?: string;
+      userId?: string;
+      creatorId?: string;
+    },
+  ) {
     const parseSafeInt = (val?: string) => {
       if (!val) return undefined;
       const num = parseInt(val);
-      return (isNaN(num) || num > 2147483647) ? undefined : num;
+      return isNaN(num) || num > 2147483647 ? undefined : num;
     };
 
     const backendQuery = {
@@ -50,7 +68,10 @@ export class PollsController {
 
   // ============ VOTING ============
   @Post(':id/vote')
-  vote(@Param('id') id: string, @Body() body: { userId: number; optionId: string }) {
+  vote(
+    @Param('id') id: string,
+    @Body() body: { userId: number; optionId: string },
+  ) {
     return this.pollsService.vote(+id, body.userId, body.optionId);
   }
 
@@ -65,28 +86,19 @@ export class PollsController {
   }
 
   // ============ LIKES/DISLIKES ============
-  @Post(':id/like')
-  likePoll(@Param('id') id: string, @Body('userId') userId: number) {
-    return this.pollsService.likePoll(+id, +userId);
-  }
-
-  @Post(':id/dislike')
-  dislikePoll(@Param('id') id: string, @Body('userId') userId: number) {
-    return this.pollsService.dislikePoll(+id, +userId);
-  }
-
-  @Delete(':id/like')
-  unlikePoll(@Param('id') id: string, @Body('userId') userId: number) {
-    return this.pollsService.unlikePoll(+id, +userId);
-  }
-
-  @Delete(':id/dislike')
-  undislikePoll(@Param('id') id: string, @Body('userId') userId: number) {
-    return this.pollsService.unlikePoll(+id, +userId);
+  @Post(':id/react')
+  reactToPoll(
+    @Param('id') id: string,
+    @Body() body: { userId: number; type: string },
+  ) {
+    return this.pollsService.reactToPoll(+id, body.userId, body.type);
   }
 
   @Get(':id/interactors')
-  getInteractors(@Param('id') id: string, @Query('type') type: 'like' | 'dislike' | 'vote') {
+  getInteractors(
+    @Param('id') id: string,
+    @Query('type') type: string,
+  ) {
     return this.pollsService.getInteractors(+id, type);
   }
 
@@ -97,30 +109,51 @@ export class PollsController {
   }
 
   @Post(':id/comments')
-  addComment(@Param('id') id: string, @Body() body: { userId: number; text: string; parentId?: number }) {
-    return this.pollsService.addComment(+id, body.userId, body.text, body.parentId);
+  addComment(
+    @Param('id') id: string,
+    @Body() body: { userId: number; text: string; parentId?: number },
+  ) {
+    return this.pollsService.addComment(
+      +id,
+      body.userId,
+      body.text,
+      body.parentId,
+    );
   }
 
-  @Post('comments/:commentId/like')
-  likeComment(@Param('commentId') commentId: string, @Body('userId') userId: number) {
-    return this.pollsService.likeComment(+commentId, userId);
-  }
-
-  @Delete('comments/:commentId/like')
-  unlikeComment(@Param('commentId') commentId: string, @Body('userId') userId: number) {
-    return this.pollsService.unlikeComment(+commentId, userId);
+  @Post('comments/:commentId/react')
+  reactToComment(
+    @Param('commentId') commentId: string,
+    @Body() body: { userId: number; type: string },
+  ) {
+    return this.pollsService.reactToComment(+commentId, body.userId, body.type);
   }
 
   // ============ SEED COMMENTS ============
   @Post('seed/comments')
-  seedComments(@Body() commentsData: { pollId: number; userId: number; text: string }[]) {
+  seedComments(
+    @Body() commentsData: { pollId: number; userId: number; text: string }[],
+  ) {
     return this.pollsService.seedComments(commentsData);
   }
 
   // ============ MODERATION ============
   @Post(':id/moderate')
-  moderatorAction(@Param('id') id: string, @Body() body: { moderatorId: number; action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'; comment?: string }) {
-    return this.pollsService.moderatorAction(+id, body.moderatorId, body.action, body.comment);
+  moderatorAction(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      moderatorId: number;
+      action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES';
+      comment?: string;
+    },
+  ) {
+    return this.pollsService.moderatorAction(
+      +id,
+      body.moderatorId,
+      body.action,
+      body.comment,
+    );
   }
 
   @Get(':id/moderation-history')

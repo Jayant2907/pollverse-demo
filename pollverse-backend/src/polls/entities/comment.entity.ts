@@ -1,44 +1,54 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import type { Poll } from './poll.entity';
 
 @Entity()
 export class Comment {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column()
-    text: string;
+  @Column()
+  text: string;
 
-    @Column()
-    userId: number;
+  @Column()
+  userId: number;
 
-    @Column()
-    pollId: number;
+  @Column()
+  pollId: number;
 
-    @Column({ default: 0 })
-    likes: number;
+  @Column({ default: 0 })
+  likes: number;
 
-    @Column({ nullable: true })
-    parentId: number;
+  @Column('simple-json', { nullable: true })
+  reactions: Record<string, number>;
 
-    @CreateDateColumn()
-    createdAt: Date;
+  @Column({ nullable: true })
+  parentId: number;
 
-    @ManyToOne(() => User, { eager: true })
-    @JoinColumn({ name: 'userId' })
-    user: User;
+  @CreateDateColumn()
+  createdAt: Date;
 
-    @ManyToOne('Poll')
-    @JoinColumn({ name: 'pollId' })
-    poll: Poll;
+  @ManyToOne(() => User, { eager: true })
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
-    @ManyToOne(() => Comment, (comment) => comment.replies)
-    @JoinColumn({ name: 'parentId' })
-    parent: Comment;
+  @ManyToOne('Poll')
+  @JoinColumn({ name: 'pollId' })
+  poll: Poll;
 
-    @Column({ default: 0 })
-    replyCount: number;
+  @ManyToOne(() => Comment, (comment) => comment.replies)
+  @JoinColumn({ name: 'parentId' })
+  parent: Comment;
 
-    replies?: Comment[];
+  @Column({ default: 0 })
+  replyCount: number;
+
+  replies?: Comment[];
 }
