@@ -75,12 +75,25 @@ export class UsersController {
 
   // ============ SIMPLE LOGIN (No Auth for now) ============
   @Post('login')
-  async login(@Body() body: { email: string; password?: string }) {
-    const user = await this.usersService.findByEmail(body.email);
+  async login(@Body() body: { email: string; phoneNumber?: string; password?: string }) {
+    let user = await this.usersService.findByEmail(body.email);
     if (user) {
-      // No password check for dev mode - just email based login
+      // If user exists, but doesn't have a phone number and one was provided, update it
+      if (!user.phoneNumber && body.phoneNumber) {
+        await this.usersService.update(user.id, { phoneNumber: body.phoneNumber });
+        user = await this.usersService.findOne(user.id);
+      }
       return { success: true, user: { ...user, password: undefined } };
     }
-    return { success: false, message: 'User not found' };
+
+    // If not found, creating a new user (Signup flow)
+    const newUser = await this.usersService.create({
+      email: body.email,
+      username: body.email.split('@')[0],
+      avatar: `https://i.pravatar.cc/150?u=${body.email}`,
+      phoneNumber: body.phoneNumber,
+    } as any);
+
+    return { success: true, user: { ...newUser, password: undefined } };
   }
 }

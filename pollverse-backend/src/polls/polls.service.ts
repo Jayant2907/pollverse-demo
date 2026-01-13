@@ -5,6 +5,7 @@ import { CreatePollDto } from './dto/create-poll.dto';
 import { UpdatePollDto } from './dto/update-poll.dto';
 import { Poll } from './entities/poll.entity';
 import { Comment } from './entities/comment.entity';
+import { CommentLike } from './entities/comment-like.entity';
 import { Vote } from './entities/vote.entity';
 import { Interaction } from '../users/entities/interaction.entity';
 import { ModerationLog } from './entities/moderation-log.entity';
@@ -24,6 +25,8 @@ export class PollsService {
     private voteRepository: Repository<Vote>,
     @InjectRepository(Interaction)
     private interactionRepository: Repository<Interaction>,
+    @InjectRepository(CommentLike)
+    private commentLikeRepository: Repository<CommentLike>,
     @InjectRepository(ModerationLog)
     private moderationLogRepository: Repository<ModerationLog>,
 
@@ -401,34 +404,100 @@ export class PollsService {
   }
 
   // ============ COMMENTS ============
-  async getComments(pollId: number) {
-    return this.commentRepository.find({
+  async getComments(pollId: number, userId?: number) {
+    const comments = await this.commentRepository.find({
       where: { pollId },
       order: { createdAt: 'DESC' },
       relations: ['user'],
     });
+
+    if (userId) {
+      const likedCommentIds = (await this.commentLikeRepository.find({
+        where: { userId, commentId: In(comments.map(c => c.id)) }
+      })).map(l => l.commentId);
+
+      comments.forEach(c => {
+        (c as any).isLiked = likedCommentIds.includes(c.id);
+      });
+    }
+
+    // Threading logic: group by parentId
+    const rootComments = comments.filter(c => !c.parentId);
+    const replies = comments.filter(c => c.parentId);
+
+    rootComments.forEach(root => {
+      root.replies = replies.filter(r => r.parentId === root.id).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    });
+
+    return rootComments;
   }
 
-  async addComment(pollId: number, userId: number, text: string) {
-    const comment = this.commentRepository.create({ pollId, userId, text });
+  async addComment(pollId: number, userId: number, text: string, parentId?: number) {
+    const comment = this.commentRepository.create({ pollId, userId, text, parentId });
     const saved = await this.commentRepository.save(comment);
 
+    if (parentId) {
+      await this.commentRepository.increment({ id: parentId }, 'replyCount', 1);
+
+      // Notify parent comment author
+      const parentComment = await this.commentRepository.findOneBy({ id: parentId });
+      if (parentComment && parentComment.userId !== userId) {
+        this.notificationsService.create({
+          recipientId: parentComment.userId,
+          actorId: userId,
+          type: 'comment_reply',
+          resourceId: pollId,
+          resourceType: 'poll'
+        }).catch(e => console.error(e));
+      }
+    }
+
     const poll = await this.pollsRepository.findOneBy({ id: pollId });
-    if (poll && poll.creatorId && poll.creatorId !== userId) {
+    if (poll && poll.creatorId && poll.creatorId !== userId && !parentId) {
       this.notificationsService.create({ recipientId: poll.creatorId, actorId: userId, type: 'comment', resourceId: pollId, resourceType: 'poll' }).catch(e => console.error(e));
     }
     return saved;
   }
 
-  async likeComment(commentId: number) {
+  async likeComment(commentId: number, userId: number) {
+    const existingLike = await this.commentLikeRepository.findOneBy({ commentId, userId });
+    if (existingLike) return { success: true };
+
     const comment = await this.commentRepository.findOneBy({ id: commentId });
     if (comment) {
+      await this.commentLikeRepository.save(this.commentLikeRepository.create({ commentId, userId }));
       comment.likes = (comment.likes || 0) + 1;
       await this.commentRepository.save(comment);
       // Award points for comment like
       if (comment.userId) {
         await this.pointsService.awardPoints(comment.userId, 2, 'LIKE_COMMENT', commentId, { commentId, pollId: comment.pollId });
       }
+
+      // Notify comment author
+      if (comment.userId !== userId) {
+        this.notificationsService.create({
+          recipientId: comment.userId,
+          actorId: userId,
+          type: 'comment_like',
+          resourceId: comment.pollId,
+          resourceType: 'poll'
+        }).catch(e => console.error(e));
+      }
+
+      return { success: true, likes: comment.likes };
+    }
+    return { success: false };
+  }
+
+  async unlikeComment(commentId: number, userId: number) {
+    const existingLike = await this.commentLikeRepository.findOneBy({ commentId, userId });
+    if (!existingLike) return { success: true };
+
+    const comment = await this.commentRepository.findOneBy({ id: commentId });
+    if (comment) {
+      await this.commentLikeRepository.remove(existingLike);
+      comment.likes = Math.max(0, (comment.likes || 0) - 1);
+      await this.commentRepository.save(comment);
       return { success: true, likes: comment.likes };
     }
     return { success: false };

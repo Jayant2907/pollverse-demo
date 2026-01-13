@@ -19,6 +19,9 @@ export class Comment {
     @Column({ default: 0 })
     likes: number;
 
+    @Column({ nullable: true })
+    parentId: number;
+
     @CreateDateColumn()
     createdAt: Date;
 
@@ -29,4 +32,13 @@ export class Comment {
     @ManyToOne('Poll')
     @JoinColumn({ name: 'pollId' })
     poll: Poll;
+
+    @ManyToOne(() => Comment, (comment) => comment.replies)
+    @JoinColumn({ name: 'parentId' })
+    parent: Comment;
+
+    @Column({ default: 0 })
+    replyCount: number;
+
+    replies?: Comment[];
 }
