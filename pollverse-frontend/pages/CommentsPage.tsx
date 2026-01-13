@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Poll, Comment, User } from '../types';
 import { timeAgo } from '../constants';
-import { ChevronLeftIcon, HeartIcon, PaperAirplaneIcon } from '../components/Icons';
+import { ChevronLeftIcon, HeartIcon, PaperAirplaneIcon, XIcon } from '../components/Icons';
 import { CommentService } from '../services/CommentService';
 
 interface CommentsPageProps {
@@ -12,25 +12,129 @@ interface CommentsPageProps {
     currentUser: User;
 }
 
+const CommentItem: React.FC<{
+    comment: Comment;
+    onReply: (c: Comment) => void;
+    onLike: (c: Comment) => void;
+    pollCreatorId?: number | string;
+    isReply?: boolean;
+}> = ({ comment, onReply, onLike, pollCreatorId, isReply }) => {
+    const isAuthor = pollCreatorId && String(comment.user?.id) === String(pollCreatorId);
+
+    return (
+        <div className={`flex flex-col ${isReply ? 'ml-10 mt-2' : 'mt-4 animate-fade-in'}`}>
+            <div className="flex items-start space-x-3">
+                <img
+                    src={comment.user?.avatar || `https://ui-avatars.com/api/?name=${comment.user?.username}`}
+                    alt={comment.user?.username || 'User'}
+                    className={`${isReply ? 'w-7 h-7' : 'w-10 h-10'} rounded-full object-cover border-2 border-white dark:border-gray-800 shadow-sm`}
+                />
+                <div className="flex-grow min-w-0">
+                    <div className={`relative group p-3 rounded-2xl ${isAuthor ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                        <div className="flex justify-between items-center mb-1">
+                            <div className="flex items-center gap-1.5">
+                                <p className="font-extrabold text-xs text-gray-900 dark:text-gray-100 truncate">
+                                    {comment.user?.username || 'Unknown'}
+                                </p>
+                                {isAuthor && (
+                                    <span className="bg-blue-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full tracking-tighter">Author</span>
+                                )}
+                            </div>
+                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 whitespace-nowrap">{timeAgo(comment.timestamp)}</p>
+                        </div>
+                        <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed break-words">{comment.text}</p>
+                    </div>
+
+                    <div className="flex items-center space-x-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 mt-1.5 px-2">
+                        <button
+                            onClick={() => onLike(comment)}
+                            className={`flex items-center space-x-1 transition-colors ${comment.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+                        >
+                            <HeartIcon className={`h-3.5 w-3.5 ${comment.isLiked ? 'animate-bounce' : ''}`} />
+                            <span>{comment.likes || 0}</span>
+                        </button>
+                        {!isReply && (
+                            <button onClick={() => onReply(comment)} className="hover:text-blue-600 transition-colors uppercase tracking-widest text-[10px]">Reply</button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Render nested replies if any */}
+            {comment.replies && comment.replies.length > 0 && (
+                <div className="space-y-1">
+                    {comment.replies.map(reply => (
+                        <CommentItem
+                            key={reply.id}
+                            comment={reply}
+                            onReply={onReply}
+                            onLike={onLike}
+                            pollCreatorId={pollCreatorId}
+                            isReply={true}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, requireLogin, currentUser }) => {
-    // Start with empty or poll.comments, but rely on fetch
     const [comments, setComments] = useState<Comment[]>(poll.comments || []);
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(false);
+    const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    const fetchComments = async () => {
+        const pid = Number(poll.id);
+        if (isNaN(pid)) return;
+
+        const fetched = await CommentService.getComments(pid, currentUser?.id ? Number(currentUser.id) : undefined);
+        if (fetched && Array.isArray(fetched)) {
+            setComments(fetched);
+        }
+    };
 
     useEffect(() => {
-        const fetchComments = async () => {
-            // poll.id could be string "1", cast to number
-            const pid = Number(poll.id);
-            if (isNaN(pid)) return;
-
-            const fetched = await CommentService.getComments(pid);
-            if (fetched && Array.isArray(fetched)) {
-                setComments(fetched);
-            }
-        };
         fetchComments();
-    }, [poll.id]);
+    }, [poll.id, currentUser?.id]);
+
+    const handleLikeComment = async (comment: Comment) => {
+        if (!isLoggedIn) {
+            requireLogin(() => handleLikeComment(comment));
+            return;
+        }
+
+        const isLiked = comment.isLiked;
+
+        // Optimistic UI
+        const updateCommentInList = (list: Comment[]): Comment[] => {
+            return list.map(c => {
+                if (String(c.id) === String(comment.id)) {
+                    return { ...c, isLiked: !isLiked, likes: isLiked ? Math.max(0, c.likes - 1) : c.likes + 1 };
+                }
+                if (c.replies) {
+                    return { ...c, replies: updateCommentInList(c.replies) };
+                }
+                return c;
+            });
+        };
+
+        setComments(prev => updateCommentInList(prev));
+
+        try {
+            if (isLiked) {
+                await CommentService.unlikeComment(Number(comment.id), Number(currentUser.id));
+            } else {
+                await CommentService.likeComment(Number(comment.id), Number(currentUser.id));
+            }
+        } catch (error) {
+            console.error("Failed to like/unlike comment", error);
+            // Rollback if failed? For now keep it simple
+            fetchComments();
+        }
+    };
 
     const handleAddComment = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -43,20 +147,42 @@ const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, r
 
         setLoading(true);
         try {
-            const rawComment = await CommentService.addComment(Number(poll.id), Number(currentUser.id), newComment);
+            const rawComment = await CommentService.addComment(
+                Number(poll.id),
+                Number(currentUser.id),
+                newComment,
+                replyingTo ? Number(replyingTo.id) : undefined
+            );
 
-            // Map raw backend response to Comment type
             const commentToAdd: Comment = {
                 ...rawComment,
                 id: rawComment.id,
                 text: rawComment.text,
                 likes: 0,
-                timestamp: new Date(), // Use current time for instant feedback
-                user: currentUser, // Optimistically allow display
+                timestamp: new Date(),
+                user: currentUser,
+                replies: [],
+                isLiked: false
             };
 
-            setComments(prev => [commentToAdd, ...prev]);
+            if (replyingTo) {
+                // Add to replies of the parent
+                setComments(prev => prev.map(c => {
+                    if (String(c.id) === String(replyingTo.id)) {
+                        return { ...c, replies: [commentToAdd, ...(c.replies || [])] };
+                    }
+                    return c;
+                }));
+                setReplyingTo(null);
+            } else {
+                setComments(prev => [commentToAdd, ...prev]);
+            }
+
             setNewComment('');
+            // Scroll to top if new root comment
+            if (!replyingTo) {
+                scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         } catch (error) {
             console.error("Failed to add comment", error);
         } finally {
@@ -65,36 +191,69 @@ const CommentsPage: React.FC<CommentsPageProps> = ({ poll, onBack, isLoggedIn, r
     };
 
     return (
-        <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in">
-            <header className="flex-shrink-0 flex items-center p-4 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-black/80 backdrop-blur-sm z-10">
-                <button onClick={onBack} className="text-blue-600 p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronLeftIcon /></button>
-                <h1 className="text-xl font-bold mx-auto text-gray-900 dark:text-gray-100">Comments</h1>
-                <div className="w-10"></div>
-            </header>
-            <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-                {comments.length === 0 ? <p className="text-center text-gray-400 mt-10">No comments yet. Be the first!</p> :
-                    comments.map((comment) => (
-                        <div key={comment.id} className="flex items-start space-x-3">
-                            <img src={comment.user?.avatar} alt={comment.user?.username || 'User'} className="w-9 h-9 rounded-full mt-1 bg-gray-200" />
-                            <div className="flex-grow">
-                                <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-xl">
-                                    <div className="flex justify-between items-center">
-                                        <p className="font-bold text-sm text-gray-900 dark:text-gray-100">{comment.user?.username || 'Unknown'}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">{timeAgo(comment.timestamp)}</p>
-                                    </div>
-                                    <p className="text-gray-800 dark:text-gray-300 mt-1">{comment.text}</p>
-                                </div>
-                                <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-1 px-2"><button className="font-semibold hover:underline">Reply</button><button className="flex items-center space-x-1 hover:text-red-500"><HeartIcon /><span>{comment.likes}</span></button></div>
-                            </div>
-                        </div>
-                    ))}
-            </div>
-            <form onSubmit={handleAddComment} className="flex-shrink-0 p-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-                <div className="flex items-center space-x-2">
-                    <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." disabled={loading} className="w-full bg-gray-100 dark:bg-gray-800 border-transparent rounded-full px-4 py-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50" />
-                    <button type="submit" disabled={loading || !newComment.trim()} className="p-2 text-blue-600 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 disabled:opacity-50"><PaperAirplaneIcon /></button>
+        <div className="h-full w-full bg-white dark:bg-black text-gray-800 dark:text-gray-200 flex flex-col animate-fade-in overflow-hidden">
+            <header className="flex-shrink-0 flex items-center p-4 border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-30">
+                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <ChevronLeftIcon className="w-6 h-6 text-gray-900 dark:text-white" />
+                </button>
+                <div className="ml-2">
+                    <h1 className="text-lg font-black tracking-tight text-gray-900 dark:text-white leading-none">Comments</h1>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{poll.question}</p>
                 </div>
-            </form>
+            </header>
+
+            <div ref={scrollRef} className="flex-grow p-4 pb-24 overflow-y-auto scrollbar-hide space-y-2">
+                {comments.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-8 opacity-40">
+                        <span className="text-6xl mb-4">💬</span>
+                        <h3 className="text-lg font-bold">No comments yet</h3>
+                        <p className="text-sm">Be the first to share your thoughts!</p>
+                    </div>
+                ) : (
+                    comments.map(comment => (
+                        <CommentItem
+                            key={comment.id}
+                            comment={comment}
+                            onReply={(c) => setReplyingTo(c)}
+                            onLike={handleLikeComment}
+                            pollCreatorId={poll.creator?.id || poll.creatorId}
+                        />
+                    ))
+                )}
+            </div>
+
+            <div className="flex-shrink-0 border-t border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md p-3 pb-8 z-30">
+                {replyingTo && (
+                    <div className="flex items-center justify-between px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-t-xl border-t border-x border-blue-100 dark:border-blue-800 -mt-12 mb-2 animate-slide-up">
+                        <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                            Replying to <span className="font-black">@{replyingTo.user?.username}</span>
+                        </p>
+                        <button onClick={() => setReplyingTo(null)} className="text-blue-600 dark:text-blue-400 p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-full">
+                            <XIcon className="h-3 w-3" />
+                        </button>
+                    </div>
+                )}
+                <form onSubmit={handleAddComment} className="flex items-center gap-3">
+                    <img src={currentUser.avatar} className="w-9 h-9 rounded-full object-cover border border-gray-100 dark:border-gray-800" alt="Me" />
+                    <div className="flex-grow relative">
+                        <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder={replyingTo ? "Write a reply..." : "Add a comment..."}
+                            disabled={loading}
+                            className="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-2xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={loading || !newComment.trim()}
+                        className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:grayscale transition-all"
+                    >
+                        <PaperAirplaneIcon className="h-5 w-5" />
+                    </button>
+                </form>
+            </div>
         </div>
     );
 };

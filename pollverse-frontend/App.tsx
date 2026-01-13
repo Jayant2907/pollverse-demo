@@ -69,12 +69,18 @@ function App() {
         if (savedUser) {
             try {
                 const user = JSON.parse(savedUser);
-                setCurrentUser(user);
-                setIsLoggedIn(true);
-                updateUserRank(user.id);
+                // Security/Stability Check: If ID is too large (likely a legacy timestamp ID), 
+                // clear it to prevent DB integer overflow errors.
+                if (user && user.id && Number(user.id) > 2147483647) {
+                    localStorage.removeItem('pollverse_user');
+                } else {
+                    setCurrentUser(user);
+                    setIsLoggedIn(true);
+                    updateUserRank(user.id);
+                }
             } catch (e) {
-
                 console.error("Failed to parse saved user", e);
+                localStorage.removeItem('pollverse_user');
             }
         }
     }, []);
@@ -215,9 +221,22 @@ function App() {
         }
     };
 
-    const handleUpdateUser = (updatedUser: User) => {
-        setCurrentUser(updatedUser);
-        localStorage.setItem('pollverse_user', JSON.stringify(updatedUser));
+    const handleUpdateUser = async (updatedUserData: User) => {
+        setGlobalLoading(true);
+        try {
+            const response = await UserService.updateProfile(Number(currentUser.id), updatedUserData);
+            if (response) {
+                const newUser = { ...currentUser, ...response };
+                setCurrentUser(newUser);
+                localStorage.setItem('pollverse_user', JSON.stringify(newUser));
+                showToast('Profile updated!');
+            }
+        } catch (e) {
+            console.error("Failed to update profile", e);
+            showToast('Failed to sync profile');
+        } finally {
+            setGlobalLoading(false);
+        }
     };
 
     const handleVote = (pollId: number | string, pointsEarned?: number, updatedVotes?: Record<string | number, number>) => {

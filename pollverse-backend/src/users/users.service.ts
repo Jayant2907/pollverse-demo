@@ -54,8 +54,13 @@ export class UsersService {
     return this.usersRepository.findOneBy({ email });
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return this.usersRepository.update(id, updateUserDto);
+  async update(id: number, updateUserDto: UpdateUserDto) {
+    const user = await this.usersRepository.preload({
+      id: id,
+      ...updateUserDto,
+    });
+    if (!user) return null;
+    return this.usersRepository.save(user);
   }
 
   remove(id: number) {

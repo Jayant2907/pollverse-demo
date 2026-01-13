@@ -20,6 +20,30 @@ export class User {
     @Column({ default: 0 })
     points: number;
 
+    @Column({ nullable: true })
+    phoneNumber: string;
+
+    @Column({ nullable: true, type: 'text' })
+    bio: string;
+
+    @Column({ nullable: true })
+    location: string;
+
+    @Column({ nullable: true })
+    website: string;
+
+    @Column({ nullable: true })
+    profession: string;
+
+    @Column('simple-array', { nullable: true })
+    interests: string[];
+
+    @Column({ nullable: true })
+    dateOfBirth: Date;
+
+    @Column('simple-json', { nullable: true })
+    socialLinks: { twitter?: string; instagram?: string; linkedin?: string; github?: string };
+
     @Column('simple-array', { nullable: true })
     following: string[];
 

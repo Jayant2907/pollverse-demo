@@ -10,6 +10,14 @@ export interface User {
   pollsCount: number;
   trustLevel?: number;
   rank?: number;
+  phoneNumber?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+  profession?: string;
+  interests?: string[];
+  dateOfBirth?: Date;
+  socialLinks?: { twitter?: string; instagram?: string; linkedin?: string; github?: string };
 }
 
 
@@ -19,6 +27,10 @@ export interface Comment {
   text: string;
   likes: number;
   timestamp: Date;
+  parentId?: number;
+  replyCount?: number;
+  replies?: Comment[];
+  isLiked?: boolean;
 }
 
 export interface PollOption {

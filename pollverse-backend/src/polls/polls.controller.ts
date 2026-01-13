@@ -19,13 +19,16 @@ export class PollsController {
 
   @Get()
   findAll(@Query() query: { category?: string; search?: string; tag?: string; userId?: string; creatorId?: string }) {
-    const userId = query.userId ? parseInt(query.userId) : undefined;
-    const creatorId = query.creatorId ? parseInt(query.creatorId) : undefined;
+    const parseSafeInt = (val?: string) => {
+      if (!val) return undefined;
+      const num = parseInt(val);
+      return (isNaN(num) || num > 2147483647) ? undefined : num;
+    };
 
     const backendQuery = {
       ...query,
-      userId: isNaN(userId as any) ? undefined : userId,
-      creatorId: isNaN(creatorId as any) ? undefined : creatorId,
+      userId: parseSafeInt(query.userId),
+      creatorId: parseSafeInt(query.creatorId),
     };
     return this.pollsService.findAll(backendQuery);
   }
@@ -89,18 +92,23 @@ export class PollsController {
 
   // ============ COMMENTS ============
   @Get(':id/comments')
-  getComments(@Param('id') id: string) {
-    return this.pollsService.getComments(+id);
+  getComments(@Param('id') id: string, @Query('userId') userId?: string) {
+    return this.pollsService.getComments(+id, userId ? +userId : undefined);
   }
 
   @Post(':id/comments')
-  addComment(@Param('id') id: string, @Body() body: { userId: number; text: string }) {
-    return this.pollsService.addComment(+id, body.userId, body.text);
+  addComment(@Param('id') id: string, @Body() body: { userId: number; text: string; parentId?: number }) {
+    return this.pollsService.addComment(+id, body.userId, body.text, body.parentId);
   }
 
   @Post('comments/:commentId/like')
-  likeComment(@Param('commentId') commentId: string) {
-    return this.pollsService.likeComment(+commentId);
+  likeComment(@Param('commentId') commentId: string, @Body('userId') userId: number) {
+    return this.pollsService.likeComment(+commentId, userId);
+  }
+
+  @Delete('comments/:commentId/like')
+  unlikeComment(@Param('commentId') commentId: string, @Body('userId') userId: number) {
+    return this.pollsService.unlikeComment(+commentId, userId);
   }
 
   // ============ SEED COMMENTS ============

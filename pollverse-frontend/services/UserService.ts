@@ -61,5 +61,13 @@ export const UserService = {
         const response = await fetch(`${USERS_URL}/${userId}/following`);
         if (!response.ok) return [];
         return response.json();
+    },
+    updateProfile: async (userId: number, profileData: Partial<User>) => {
+        const response = await fetch(`${USERS_URL}/${userId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(profileData)
+        });
+        return response.json();
     }
 };
