@@ -16,7 +16,7 @@ export class UsersService {
     @InjectRepository(Interaction)
     private interactionRepository: Repository<Interaction>,
     private readonly pointsService: PointsService,
-  ) { }
+  ) {}
 
   async seed(usersData: any[]) {
     if (!Array.isArray(usersData)) return [];
@@ -24,7 +24,9 @@ export class UsersService {
     for (const data of usersData) {
       // Check if user with this email already exists
       if (data.email) {
-        const existing = await this.usersRepository.findOneBy({ email: data.email });
+        const existing = await this.usersRepository.findOneBy({
+          email: data.email,
+        });
         if (existing) {
           savedUsers.push(existing);
           continue;
@@ -68,13 +70,24 @@ export class UsersService {
   }
 
   // ============ INTERACTIONS (Likes/Dislikes) ============
-  async setInteraction(userId: number, pollId: number, type: 'like' | 'dislike' | null) {
-    const existing = await this.interactionRepository.findOneBy({ userId, pollId });
+  async setInteraction(
+    userId: number,
+    pollId: number,
+    type: 'like' | 'dislike' | null,
+  ) {
+    const existing = await this.interactionRepository.findOneBy({
+      userId,
+      pollId,
+    });
     if (existing) {
       existing.type = type;
       return this.interactionRepository.save(existing);
     }
-    const interaction = this.interactionRepository.create({ userId, pollId, type });
+    const interaction = this.interactionRepository.create({
+      userId,
+      pollId,
+      type,
+    });
     return this.interactionRepository.save(interaction);
   }
 
@@ -85,7 +98,9 @@ export class UsersService {
   // ============ FOLLOWING ============
   async follow(userId: number, targetUserId: number) {
     const user = await this.usersRepository.findOneBy({ id: userId });
-    const targetUser = await this.usersRepository.findOneBy({ id: targetUserId });
+    const targetUser = await this.usersRepository.findOneBy({
+      id: targetUserId,
+    });
     let pointsEarned = 0;
 
     if (user && targetUser) {
@@ -97,7 +112,13 @@ export class UsersService {
         await this.usersRepository.save(user);
 
         // Award points for following
-        const result = await this.pointsService.awardPoints(userId, 10, 'FOLLOW', targetUserId, { targetUserId });
+        const result = await this.pointsService.awardPoints(
+          userId,
+          10,
+          'FOLLOW',
+          targetUserId,
+          { targetUserId },
+        );
         if (result.success) {
           pointsEarned = result.pointsEarned || 0;
         }
@@ -116,15 +137,21 @@ export class UsersService {
 
   async unfollow(userId: number, targetUserId: number) {
     const user = await this.usersRepository.findOneBy({ id: userId });
-    const targetUser = await this.usersRepository.findOneBy({ id: targetUserId });
+    const targetUser = await this.usersRepository.findOneBy({
+      id: targetUserId,
+    });
 
     if (user) {
-      user.following = (user.following || []).filter(id => id !== String(targetUserId));
+      user.following = (user.following || []).filter(
+        (id) => id !== String(targetUserId),
+      );
       await this.usersRepository.save(user);
     }
 
     if (targetUser) {
-      targetUser.followers = (targetUser.followers || []).filter(id => id !== String(userId));
+      targetUser.followers = (targetUser.followers || []).filter(
+        (id) => id !== String(userId),
+      );
       await this.usersRepository.save(targetUser);
     }
     return user;
@@ -135,10 +162,13 @@ export class UsersService {
     if (!user || !user.followers || user.followers.length === 0) return [];
 
     // Convert string IDs to numbers
-    const followerIds = user.followers.map(fid => parseInt(fid)).filter(fid => !isNaN(fid));
+    const followerIds = user.followers
+      .map((fid) => parseInt(fid))
+      .filter((fid) => !isNaN(fid));
     if (followerIds.length === 0) return [];
 
-    return this.usersRepository.createQueryBuilder('user')
+    return this.usersRepository
+      .createQueryBuilder('user')
       .where('user.id IN (:...ids)', { ids: followerIds })
       .getMany();
   }
@@ -148,10 +178,13 @@ export class UsersService {
     if (!user || !user.following || user.following.length === 0) return [];
 
     // Convert string IDs to numbers
-    const followingIds = user.following.map(fid => parseInt(fid)).filter(fid => !isNaN(fid));
+    const followingIds = user.following
+      .map((fid) => parseInt(fid))
+      .filter((fid) => !isNaN(fid));
     if (followingIds.length === 0) return [];
 
-    return this.usersRepository.createQueryBuilder('user')
+    return this.usersRepository
+      .createQueryBuilder('user')
       .where('user.id IN (:...ids)', { ids: followingIds })
       .getMany();
   }

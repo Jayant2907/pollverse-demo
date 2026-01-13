@@ -46,7 +46,9 @@ export class PollsService {
     if (status !== 'DRAFT') {
       // Check if user qualifies for moderation bypass (e.g. > 2000 points)
       if (createPollDto.creatorId) {
-        const userRank = await this.pointsService.getUserRank(createPollDto.creatorId);
+        const userRank = await this.pointsService.getUserRank(
+          createPollDto.creatorId,
+        );
         if (userRank && (userRank.points >= 2000 || userRank.rank <= 10)) {
           poll.status = poll.scheduledAt ? 'SCHEDULED' : 'PUBLISHED';
         }
@@ -57,16 +59,24 @@ export class PollsService {
 
     // Update user's pollsCount if it's not a draft
     if (savedPoll.creatorId && savedPoll.status !== 'DRAFT') {
-      await this.pollsRepository.manager.getRepository('User').increment({ id: savedPoll.creatorId }, 'pollsCount', 1);
+      await this.pollsRepository.manager
+        .getRepository('User')
+        .increment({ id: savedPoll.creatorId }, 'pollsCount', 1);
       // Award Points for Creation
-      await this.pointsService.awardPoints(savedPoll.creatorId, 50, 'CREATE_POLL', savedPoll.id, { pollId: savedPoll.id });
+      await this.pointsService.awardPoints(
+        savedPoll.creatorId,
+        50,
+        'CREATE_POLL',
+        savedPoll.id,
+        { pollId: savedPoll.id },
+      );
     }
 
     return savedPoll;
   }
 
   async seed(pollsData: CreatePollDto[]) {
-    const polls = pollsData.map(dto => {
+    const polls = pollsData.map((dto) => {
       const pollEntity = this.pollsRepository.create({
         ...dto,
         votes: dto['votes'] || {},
@@ -79,7 +89,13 @@ export class PollsService {
     return this.pollsRepository.save(polls);
   }
 
-  async findAll(query: { category?: string; search?: string; tag?: string; userId?: number; creatorId?: number }) {
+  async findAll(query: {
+    category?: string;
+    search?: string;
+    tag?: string;
+    userId?: number;
+    creatorId?: number;
+  }) {
     const qb = this.pollsRepository.createQueryBuilder('poll');
     qb.leftJoinAndSelect('poll.creator', 'creator');
     qb.loadRelationCountAndMap('poll.commentsCount', 'poll.comments');
@@ -88,24 +104,38 @@ export class PollsService {
       // Get the user to find who they are following
       // Note: In a real app, this might be a separate join or a more optimized query
       // For now, we'll fetch the user's following list and filter by those IDs
-      const user = await this.pollsRepository.manager.getRepository('User').findOneBy({ id: query.userId }) as any;
+      const user = (await this.pollsRepository.manager
+        .getRepository('User')
+        .findOneBy({ id: query.userId })) as any;
       if (user && user.following && user.following.length > 0) {
-        qb.andWhere('poll.creatorId IN (:...followingIds)', { followingIds: user.following.map((id: string) => parseInt(id)) });
+        qb.andWhere('poll.creatorId IN (:...followingIds)', {
+          followingIds: user.following.map((id: string) => parseInt(id)),
+        });
       } else {
-        // If not following anyone, return empty or handle accordingly. 
+        // If not following anyone, return empty or handle accordingly.
         // Here we return empty by adding a condition that's never true
         qb.andWhere('1 = 0');
       }
-    } else if (query.category && !['For You', 'Following', 'Trending', 'Pending', 'Drafts'].includes(query.category)) {
+    } else if (
+      query.category &&
+      !['For You', 'Following', 'Trending', 'Pending', 'Drafts'].includes(
+        query.category,
+      )
+    ) {
       qb.andWhere('poll.category = :category', { category: query.category });
     }
 
     if (query.creatorId) {
-      qb.andWhere('poll.creatorId = :creatorId', { creatorId: query.creatorId });
+      qb.andWhere('poll.creatorId = :creatorId', {
+        creatorId: query.creatorId,
+      });
     }
 
     if (query.search) {
-      qb.andWhere('(LOWER(poll.question) LIKE LOWER(:search) OR LOWER(poll.description) LIKE LOWER(:search))', { search: `%${query.search}%` });
+      qb.andWhere(
+        '(LOWER(poll.question) LIKE LOWER(:search) OR LOWER(poll.description) LIKE LOWER(:search))',
+        { search: `%${query.search}%` },
+      );
     }
 
     if (query.tag) {
@@ -121,7 +151,12 @@ export class PollsService {
     // Status Filtering
     if (query.category === 'Pending') {
       qb.andWhere('poll.status = :status', { status: 'PENDING' });
-    } else if (query.category === 'Drafts' && query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {
+    } else if (
+      query.category === 'Drafts' &&
+      query.creatorId &&
+      query.userId &&
+      Number(query.userId) === Number(query.creatorId)
+    ) {
       qb.andWhere('poll.status = :status', { status: 'DRAFT' });
     } else if (query.creatorId) {
       if (query.userId && Number(query.userId) === Number(query.creatorId)) {
@@ -137,32 +172,43 @@ export class PollsService {
 
     // Scheduling Filter: Only show polls where scheduledAt is null or in the past
     // But allow creator to see their own scheduled polls
-    if (query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {
+    if (
+      query.creatorId &&
+      query.userId &&
+      Number(query.userId) === Number(query.creatorId)
+    ) {
       // No time filter for own profile
     } else {
-      qb.andWhere('(poll.scheduledAt IS NULL OR poll.scheduledAt <= :now)', { now: new Date() });
+      qb.andWhere('(poll.scheduledAt IS NULL OR poll.scheduledAt <= :now)', {
+        now: new Date(),
+      });
     }
 
-    if (query.creatorId && query.userId && Number(query.userId) === Number(query.creatorId)) {
+    if (
+      query.creatorId &&
+      query.userId &&
+      Number(query.userId) === Number(query.creatorId)
+    ) {
       qb.leftJoinAndSelect('poll.moderationLogs', 'logs');
       qb.leftJoinAndSelect('logs.moderator', 'moderator');
       qb.orderBy('logs.createdAt', 'DESC');
     }
 
-
     const polls = await qb.getMany();
 
     if (query.userId) {
-      const pollIds = polls.map(p => p.id);
+      const pollIds = polls.map((p) => p.id);
       if (pollIds.length > 0) {
         const interactions = await this.interactionRepository.find({
           where: {
             userId: query.userId,
-            pollId: In(pollIds)
-          }
+            pollId: In(pollIds),
+          },
         });
-        const interactionMap = new Map(interactions.map(i => [i.pollId, i.type]));
-        polls.forEach(p => {
+        const interactionMap = new Map(
+          interactions.map((i) => [i.pollId, i.type]),
+        );
+        polls.forEach((p) => {
           (p as any).userInteraction = interactionMap.get(p.id) || null;
         });
 
@@ -170,11 +216,11 @@ export class PollsService {
         const votes = await this.voteRepository.find({
           where: {
             userId: query.userId,
-            pollId: In(pollIds)
-          }
+            pollId: In(pollIds),
+          },
         });
-        const voteMap = new Map(votes.map(v => [v.pollId, v.optionId]));
-        polls.forEach(p => {
+        const voteMap = new Map(votes.map((v) => [v.pollId, v.optionId]));
+        polls.forEach((p) => {
           (p as any).userVote = voteMap.get(p.id) || null;
         });
       }
@@ -190,7 +236,10 @@ export class PollsService {
     });
 
     if (poll && userId) {
-      const interaction = await this.interactionRepository.findOneBy({ pollId: id, userId });
+      const interaction = await this.interactionRepository.findOneBy({
+        pollId: id,
+        userId,
+      });
       (poll as any).userInteraction = interaction ? interaction.type : null;
 
       const vote = await this.voteRepository.findOneBy({ pollId: id, userId });
@@ -203,8 +252,6 @@ export class PollsService {
 
     return poll;
   }
-
-
 
   async update(id: number, updatePollDto: UpdatePollDto) {
     const poll = await this.pollsRepository.findOneBy({ id });
@@ -224,7 +271,7 @@ export class PollsService {
         pollId: id,
         moderatorId: updatePollDto.creatorId || poll.creatorId,
         action: 'RESUBMITTED',
-        comment: 'User resubmitted the poll after edits.'
+        comment: 'User resubmitted the poll after edits.',
       });
       await this.moderationLogRepository.save(log);
     }
@@ -235,7 +282,9 @@ export class PollsService {
   async remove(id: number) {
     const poll = await this.pollsRepository.findOneBy({ id });
     if (poll && poll.creatorId) {
-      await this.pollsRepository.manager.getRepository('User').decrement({ id: poll.creatorId }, 'pollsCount', 1);
+      await this.pollsRepository.manager
+        .getRepository('User')
+        .decrement({ id: poll.creatorId }, 'pollsCount', 1);
     }
     return this.pollsRepository.delete(id);
   }
@@ -254,14 +303,20 @@ export class PollsService {
 
     // Check Max Votes
     if (poll.maxVotes) {
-      const totalVotes = Object.values(poll.votes || {}).reduce((a: number, b: number) => a + b, 0);
+      const totalVotes = Object.values(poll.votes || {}).reduce(
+        (a: number, b: number) => a + b,
+        0,
+      );
       if (totalVotes >= poll.maxVotes) {
         return { success: false, message: 'Maximum votes reached' };
       }
     }
 
     // Check if user already voted
-    const existingVote = await this.voteRepository.findOneBy({ pollId, userId });
+    const existingVote = await this.voteRepository.findOneBy({
+      pollId,
+      userId,
+    });
     if (existingVote) {
       return { success: false, message: 'User already voted on this poll' };
     }
@@ -283,20 +338,46 @@ export class PollsService {
           actorId: userId,
           type: 'vote',
           resourceId: pollId,
-          resourceType: 'poll'
+          resourceType: 'poll',
         });
-      } catch (e) { console.error("Notification failed", e); }
+      } catch (e) {
+        console.error('Notification failed', e);
+      }
     }
 
     // Award Points for Voting
     let points = 5;
-    let actionType: 'VOTE' | 'SWIPE_BONUS' | 'SURVEY_COMPLETE' | 'SIGN_PETITION' = 'VOTE';
-    if (poll.pollType === 'swipe') { points = 10; actionType = 'SWIPE_BONUS'; }
-    if (poll.pollType === 'survey') { points = 20; actionType = 'SURVEY_COMPLETE'; }
-    if (poll.pollType === 'petition') { points = 15; actionType = 'SIGN_PETITION'; }
-    const ptResult = await this.pointsService.awardPoints(userId, points, actionType, pollId, { pollId });
+    let actionType:
+      | 'VOTE'
+      | 'SWIPE_BONUS'
+      | 'SURVEY_COMPLETE'
+      | 'SIGN_PETITION' = 'VOTE';
+    if (poll.pollType === 'swipe') {
+      points = 10;
+      actionType = 'SWIPE_BONUS';
+    }
+    if (poll.pollType === 'survey') {
+      points = 20;
+      actionType = 'SURVEY_COMPLETE';
+    }
+    if (poll.pollType === 'petition') {
+      points = 15;
+      actionType = 'SIGN_PETITION';
+    }
+    const ptResult = await this.pointsService.awardPoints(
+      userId,
+      points,
+      actionType,
+      pollId,
+      { pollId },
+    );
 
-    return { success: true, message: 'Vote recorded', votes: poll.votes, pointsEarned: ptResult.pointsEarned || 0 };
+    return {
+      success: true,
+      message: 'Vote recorded',
+      votes: poll.votes,
+      pointsEarned: ptResult.pointsEarned || 0,
+    };
   }
 
   async getUserVote(pollId: number, userId: number) {
@@ -323,84 +404,113 @@ export class PollsService {
   }
 
   // ============ LIKES/DISLIKES ============
+  // ============ REACTIONS ============
+  async reactToPoll(pollId: number, userId: number, type: string) {
+    return await this.pollsRepository.manager.transaction(async (manager) => {
+      const poll = await manager.findOneBy(Poll, { id: pollId });
+      if (!poll) return { success: false, message: 'Poll not found' };
+
+      let interaction = await manager.findOne(Interaction, {
+        where: { pollId, userId },
+      });
+      const reactions = poll.reactions || {};
+      const previousType = interaction?.type;
+
+      if (interaction) {
+        if (interaction.type === type) {
+          // Toggle OFF
+          await manager.remove(interaction);
+          if (reactions[type] > 0) reactions[type]--;
+
+          // Backwards compatibility
+          if (type === 'like' || type === '👍')
+            poll.likes = Math.max(0, (poll.likes || 0) - 1);
+          if (type === 'dislike' || type === '👎')
+            poll.dislikes = Math.max(0, (poll.dislikes || 0) - 1);
+        } else {
+          // Switch Reaction
+          if (previousType && reactions[previousType] > 0)
+            reactions[previousType]--;
+          reactions[type] = (reactions[type] || 0) + 1;
+          interaction.type = type;
+          await manager.save(interaction);
+
+          // Backwards compatibility sync
+          if (previousType === 'like' || previousType === '👍')
+            poll.likes = Math.max(0, (poll.likes || 0) - 1);
+          if (previousType === 'dislike' || previousType === '👎')
+            poll.dislikes = Math.max(0, (poll.dislikes || 0) - 1);
+          if (type === 'like' || type === '👍')
+            poll.likes = (poll.likes || 0) + 1;
+          if (type === 'dislike' || type === '👎')
+            poll.dislikes = (poll.dislikes || 0) + 1;
+        }
+      } else {
+        // New Reaction
+        interaction = manager.create(Interaction, { pollId, userId, type });
+        await manager.save(interaction);
+        reactions[type] = (reactions[type] || 0) + 1;
+
+        // Trending Bonus
+        if (type === 'like' || type === '👍') {
+          poll.likes = (poll.likes || 0) + 1;
+          if (poll.likes === 50 && poll.creatorId) {
+            await this.pointsService.awardPoints(
+              poll.creatorId,
+              500,
+              'TRENDING_BONUS',
+              poll.id,
+              { pollId: poll.id },
+            );
+          }
+        }
+        if (type === 'dislike' || type === '👎')
+          poll.dislikes = (poll.dislikes || 0) + 1;
+
+        if (poll.creatorId && poll.creatorId !== userId) {
+          this.notificationsService
+            .create({
+              recipientId: poll.creatorId,
+              actorId: userId,
+              type: 'like', // keep 'like' for notifications for now or map to reaction
+              resourceId: pollId,
+              resourceType: 'poll',
+            })
+            .catch((e) => console.error(e));
+        }
+      }
+
+      poll.reactions = reactions;
+      await manager.save(poll);
+      return {
+        success: true,
+        likes: poll.likes,
+        dislikes: poll.dislikes,
+        reactions: poll.reactions,
+        userInteraction: interaction?.type || null,
+      };
+    });
+  }
+
   async likePoll(pollId: number, userId: number) {
-    const poll = await this.pollsRepository.findOneBy({ id: pollId });
-    if (!poll) return { success: false, message: 'Poll not found' };
-
-    let interaction = await this.interactionRepository.findOneBy({ pollId, userId });
-
-    if (interaction) {
-      if (interaction.type === 'like') {
-        return { success: true, likes: poll.likes, dislikes: poll.dislikes };
-      } else if (interaction.type === 'dislike') {
-        interaction.type = 'like';
-        await this.interactionRepository.save(interaction);
-        poll.dislikes = Math.max(0, (poll.dislikes || 0) - 1);
-        poll.likes = (poll.likes || 0) + 1;
-        await this.pollsRepository.save(poll);
-      }
-    } else {
-      interaction = this.interactionRepository.create({ pollId, userId, type: 'like' });
-      await this.interactionRepository.save(interaction);
-      poll.likes = (poll.likes || 0) + 1;
-      // Check for Trending Status (50 Likes)
-      if ((poll.likes || 0) + 1 === 50 && poll.creatorId) {
-        await this.pointsService.awardPoints(poll.creatorId, 500, 'TRENDING_BONUS', poll.id, { pollId: poll.id });
-        // Notify user about trending status?
-      }
-
-      await this.pollsRepository.save(poll);
-
-      if (poll.creatorId && poll.creatorId !== userId) {
-        this.notificationsService.create({ recipientId: poll.creatorId, actorId: userId, type: 'like', resourceId: pollId, resourceType: 'poll' }).catch(e => console.error(e));
-      }
-    }
-    return { success: true, likes: poll.likes, dislikes: poll.dislikes };
+    return this.reactToPoll(pollId, userId, 'like');
   }
 
   async dislikePoll(pollId: number, userId: number) {
-    const poll = await this.pollsRepository.findOneBy({ id: pollId });
-    if (!poll) return { success: false, message: 'Poll not found' };
-
-    let interaction = await this.interactionRepository.findOneBy({ pollId, userId });
-
-    if (interaction) {
-      if (interaction.type === 'dislike') {
-        return { success: true, likes: poll.likes, dislikes: poll.dislikes };
-      } else if (interaction.type === 'like') {
-        interaction.type = 'dislike';
-        await this.interactionRepository.save(interaction);
-        poll.likes = Math.max(0, (poll.likes || 0) - 1);
-        poll.dislikes = (poll.dislikes || 0) + 1;
-        await this.pollsRepository.save(poll);
-      }
-    } else {
-      interaction = this.interactionRepository.create({ pollId, userId, type: 'dislike' });
-      await this.interactionRepository.save(interaction);
-      poll.dislikes = (poll.dislikes || 0) + 1;
-      await this.pollsRepository.save(poll);
-
-      // Notify for dislike if desired
-      if (poll.creatorId && poll.creatorId !== userId) {
-        this.notificationsService.create({ recipientId: poll.creatorId, actorId: userId, type: 'dislike', resourceId: pollId, resourceType: 'poll' }).catch(e => console.error(e));
-      }
-    }
-    return { success: true, likes: poll.likes, dislikes: poll.dislikes };
+    return this.reactToPoll(pollId, userId, 'dislike');
   }
 
   async unlikePoll(pollId: number, userId: number) {
-    const poll = await this.pollsRepository.findOneBy({ id: pollId });
-    if (!poll) return { success: false };
-
-    const interaction = await this.interactionRepository.findOneBy({ pollId, userId });
+    // Unlike is actually handled by toggle logic in reactToPoll if same type is passed.
+    // But for legacy support, we can keep this or search existing then toggle.
+    const interaction = await this.interactionRepository.findOneBy({
+      pollId,
+      userId,
+    });
     if (interaction) {
-      if (interaction.type === 'like') poll.likes = Math.max(0, (poll.likes || 0) - 1);
-      if (interaction.type === 'dislike') poll.dislikes = Math.max(0, (poll.dislikes || 0) - 1);
-
-      await this.interactionRepository.remove(interaction);
-      await this.pollsRepository.save(poll);
+      return this.reactToPoll(pollId, userId, interaction.type!);
     }
-    return { success: true, likes: poll.likes, dislikes: poll.dislikes };
+    return { success: true };
   }
 
   // ============ COMMENTS ============
@@ -412,143 +522,246 @@ export class PollsService {
     });
 
     if (userId) {
-      const likedCommentIds = (await this.commentLikeRepository.find({
-        where: { userId, commentId: In(comments.map(c => c.id)) }
-      })).map(l => l.commentId);
+      const likedCommentIds = (
+        await this.commentLikeRepository.find({
+          where: { userId, commentId: In(comments.map((c) => c.id)) },
+        })
+      ).map((l) => l.commentId);
 
-      comments.forEach(c => {
+      comments.forEach((c) => {
         (c as any).isLiked = likedCommentIds.includes(c.id);
       });
     }
 
     // Threading logic: group by parentId
-    const rootComments = comments.filter(c => !c.parentId);
-    const replies = comments.filter(c => c.parentId);
+    const rootComments = comments.filter((c) => !c.parentId);
+    const replies = comments.filter((c) => c.parentId);
 
-    rootComments.forEach(root => {
-      root.replies = replies.filter(r => r.parentId === root.id).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    rootComments.forEach((root) => {
+      root.replies = replies
+        .filter((r) => r.parentId === root.id)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     });
 
     return rootComments;
   }
 
-  async addComment(pollId: number, userId: number, text: string, parentId?: number) {
-    const comment = this.commentRepository.create({ pollId, userId, text, parentId });
+  async addComment(
+    pollId: number,
+    userId: number,
+    text: string,
+    parentId?: number,
+  ) {
+    const comment = this.commentRepository.create({
+      pollId,
+      userId,
+      text,
+      parentId,
+    });
     const saved = await this.commentRepository.save(comment);
 
     if (parentId) {
       await this.commentRepository.increment({ id: parentId }, 'replyCount', 1);
 
       // Notify parent comment author
-      const parentComment = await this.commentRepository.findOneBy({ id: parentId });
+      const parentComment = await this.commentRepository.findOneBy({
+        id: parentId,
+      });
       if (parentComment && parentComment.userId !== userId) {
-        this.notificationsService.create({
-          recipientId: parentComment.userId,
-          actorId: userId,
-          type: 'comment_reply',
-          resourceId: pollId,
-          resourceType: 'poll'
-        }).catch(e => console.error(e));
+        this.notificationsService
+          .create({
+            recipientId: parentComment.userId,
+            actorId: userId,
+            type: 'comment_reply',
+            resourceId: pollId,
+            resourceType: 'poll',
+          })
+          .catch((e) => console.error(e));
       }
     }
 
     const poll = await this.pollsRepository.findOneBy({ id: pollId });
     if (poll && poll.creatorId && poll.creatorId !== userId && !parentId) {
-      this.notificationsService.create({ recipientId: poll.creatorId, actorId: userId, type: 'comment', resourceId: pollId, resourceType: 'poll' }).catch(e => console.error(e));
+      this.notificationsService
+        .create({
+          recipientId: poll.creatorId,
+          actorId: userId,
+          type: 'comment',
+          resourceId: pollId,
+          resourceType: 'poll',
+        })
+        .catch((e) => console.error(e));
     }
     return saved;
   }
 
+  async reactToComment(commentId: number, userId: number, type: string) {
+    return await this.commentRepository.manager.transaction(async (manager) => {
+      const comment = await manager.findOneBy(Comment, { id: commentId });
+      if (!comment) return { success: false, message: 'Comment not found' };
+
+      let interaction = await manager.findOne(CommentLike, {
+        where: { commentId, userId },
+      });
+      const reactions = comment.reactions || {};
+      const previousType = interaction?.type;
+
+      if (interaction) {
+        if (interaction.type === type) {
+          // Toggle OFF
+          await manager.remove(interaction);
+          if (reactions[type] > 0) reactions[type]--;
+          if (type === 'like')
+            comment.likes = Math.max(0, (comment.likes || 0) - 1);
+        } else {
+          // Switch Reaction
+          if (previousType && reactions[previousType] > 0)
+            reactions[previousType]--;
+          reactions[type] = (reactions[type] || 0) + 1;
+          interaction.type = type;
+          await manager.save(interaction);
+
+          if (previousType === 'like')
+            comment.likes = Math.max(0, (comment.likes || 0) - 1);
+          if (type === 'like') comment.likes = (comment.likes || 0) + 1;
+        }
+      } else {
+        // New Reaction
+        interaction = manager.create(CommentLike, { commentId, userId, type });
+        await manager.save(interaction);
+        reactions[type] = (reactions[type] || 0) + 1;
+
+        if (type === 'like') {
+          comment.likes = (comment.likes || 0) + 1;
+        }
+
+        // Award points for comment like/reaction
+        if (comment.userId) {
+          await this.pointsService.awardPoints(
+            comment.userId,
+            2,
+            'LIKE_COMMENT',
+            commentId,
+            { commentId, pollId: comment.pollId },
+          );
+        }
+
+        // Notify comment author
+        if (comment.userId !== userId) {
+          this.notificationsService
+            .create({
+              recipientId: comment.userId,
+              actorId: userId,
+              type: 'comment_like',
+              resourceId: comment.pollId,
+              resourceType: 'poll',
+            })
+            .catch((e) => console.error(e));
+        }
+      }
+
+      comment.reactions = reactions;
+      await manager.save(comment);
+      return {
+        success: true,
+        likes: comment.likes,
+        reactions: comment.reactions,
+        userInteraction: interaction?.type || null,
+      };
+    });
+  }
+
   async likeComment(commentId: number, userId: number) {
-    const existingLike = await this.commentLikeRepository.findOneBy({ commentId, userId });
-    if (existingLike) return { success: true };
-
-    const comment = await this.commentRepository.findOneBy({ id: commentId });
-    if (comment) {
-      await this.commentLikeRepository.save(this.commentLikeRepository.create({ commentId, userId }));
-      comment.likes = (comment.likes || 0) + 1;
-      await this.commentRepository.save(comment);
-      // Award points for comment like
-      if (comment.userId) {
-        await this.pointsService.awardPoints(comment.userId, 2, 'LIKE_COMMENT', commentId, { commentId, pollId: comment.pollId });
-      }
-
-      // Notify comment author
-      if (comment.userId !== userId) {
-        this.notificationsService.create({
-          recipientId: comment.userId,
-          actorId: userId,
-          type: 'comment_like',
-          resourceId: comment.pollId,
-          resourceType: 'poll'
-        }).catch(e => console.error(e));
-      }
-
-      return { success: true, likes: comment.likes };
-    }
-    return { success: false };
+    return this.reactToComment(commentId, userId, 'like');
   }
 
   async unlikeComment(commentId: number, userId: number) {
-    const existingLike = await this.commentLikeRepository.findOneBy({ commentId, userId });
-    if (!existingLike) return { success: true };
-
-    const comment = await this.commentRepository.findOneBy({ id: commentId });
-    if (comment) {
-      await this.commentLikeRepository.remove(existingLike);
-      comment.likes = Math.max(0, (comment.likes || 0) - 1);
-      await this.commentRepository.save(comment);
-      return { success: true, likes: comment.likes };
+    const existingLike = await this.commentLikeRepository.findOneBy({
+      commentId,
+      userId,
+    });
+    if (existingLike) {
+      return this.reactToComment(commentId, userId, existingLike.type);
     }
-    return { success: false };
+    return { success: true };
   }
 
   // ============ SEED COMMENTS ============
-  async seedComments(commentsData: { pollId: number; userId: number; text: string }[]) {
-    const comments = commentsData.map(dto => this.commentRepository.create(dto));
+  async seedComments(
+    commentsData: { pollId: number; userId: number; text: string }[],
+  ) {
+    const comments = commentsData.map((dto) =>
+      this.commentRepository.create(dto),
+    );
     return this.commentRepository.save(comments);
   }
 
-  async getInteractors(pollId: number, type: 'like' | 'dislike' | 'vote') {
+  async getInteractors(pollId: number, type: string) {
     if (type === 'vote') {
       const votes = await this.voteRepository.find({
         where: { pollId },
         relations: ['user'],
       });
-      // Filter out duplicate users if any (though Unique constraint prevents it)
-      return votes.map(v => v.user);
+      return votes.map((v) => v.user);
     }
+
+    if (type === 'all') {
+      const interactions = await this.interactionRepository.find({
+        where: { pollId },
+        relations: ['user'],
+      });
+      // We return interactions objects so frontend knows which user did which reaction
+      return interactions.map(i => ({
+        ...i.user,
+        interactionType: i.type
+      }));
+    }
+
     const interactions = await this.interactionRepository.find({
       where: { pollId, type },
       relations: ['user'],
     });
-    return interactions.map(i => i.user);
+    return interactions.map((i) => ({
+      ...i.user,
+      interactionType: i.type
+    }));
   }
 
   // ============ MODERATION ============
-  async moderatorAction(pollId: number, moderatorId: number, action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', comment?: string) {
+  async moderatorAction(
+    pollId: number,
+    moderatorId: number,
+    action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES',
+    comment?: string,
+  ) {
     const poll = await this.pollsRepository.findOneBy({ id: pollId });
     if (!poll) return { success: false, message: 'Poll not found' };
 
     // Limit to Top 4 users
     const rankInfo = await this.pointsService.getUserRank(moderatorId);
     if (!rankInfo || rankInfo.rank > 4) {
-      return { success: false, message: 'Only Top 4 users on the leaderboard can moderate content.' };
+      return {
+        success: false,
+        message: 'Only Top 4 users on the leaderboard can moderate content.',
+      };
     }
 
     // Prevent duplicate actions
     const existing = await this.moderationLogRepository.findOne({
-      where: { pollId, moderatorId, action }
+      where: { pollId, moderatorId, action },
     });
     if (existing) {
-      return { success: false, message: `You have already ${action.toLowerCase().replace('_', ' ')}d this poll.` };
+      return {
+        success: false,
+        message: `You have already ${action.toLowerCase().replace('_', ' ')}d this poll.`,
+      };
     }
 
     const log = this.moderationLogRepository.create({
       pollId,
       moderatorId,
       action,
-      comment
+      comment,
     });
     await this.moderationLogRepository.save(log);
 
@@ -573,7 +786,13 @@ export class PollsService {
         await this.pollsRepository.save(poll);
         // Award creator points
         if (poll.creatorId) {
-          await this.pointsService.awardPoints(poll.creatorId, 100, 'POLL_PUBLISHED', poll.id, { pollId: poll.id });
+          await this.pointsService.awardPoints(
+            poll.creatorId,
+            100,
+            'POLL_PUBLISHED',
+            poll.id,
+            { pollId: poll.id },
+          );
         }
       }
     }
@@ -585,7 +804,7 @@ export class PollsService {
     return this.moderationLogRepository.find({
       where: { pollId },
       relations: ['moderator'],
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
   }
 }

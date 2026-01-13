@@ -5,6 +5,7 @@ import { ThumbUpIcon, ThumbDownIcon, ShareIcon, ChartBarIcon, ChatIcon, MenuIcon
 import SvgPlaceholder from '../ui/SvgPlaceholder';
 import SwipePoll from './SwipePoll';
 import ModerationTimeline from './ModerationTimeline';
+import ReactionPicker from '../ui/ReactionPicker';
 
 import confetti from 'canvas-confetti';
 
@@ -23,11 +24,12 @@ interface PollCardProps {
 
 const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requireLogin, showToast, onVote, onVoteComplete, currentUser, readOnly, setGlobalLoading }) => {
     const [userVote, setUserVote] = useState<string | number | null>(poll.userVote || null);
-    const [interaction, setInteraction] = useState<'like' | 'dislike' | null>(poll.userInteraction || null);
+    const [interaction, setInteraction] = useState<string | null>(poll.userInteraction || null);
     const [likesCount, setLikesCount] = useState(poll.likes || 0);
     const [dislikesCount, setDislikesCount] = useState(poll.dislikes || 0);
+    const [reactions, setReactions] = useState<Record<string, number>>(poll.reactions || {});
     const [showFullDescription, setShowFullDescription] = useState(false);
-    const [interactorsModal, setInteractorsModal] = useState<{ type: 'like' | 'dislike' | 'vote', users: User[] } | null>(null);
+    const [interactorsModal, setInteractorsModal] = useState<{ type: string, activeTab: string, users: User[] } | null>(null);
     const [isLoadingInteractors, setIsLoadingInteractors] = useState(false);
     const [showModeration, setShowModeration] = useState(false);
 
@@ -40,16 +42,18 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         setInteraction(poll.userInteraction || null);
         setLikesCount(poll.likes || 0);
         setDislikesCount(poll.dislikes || 0);
-    }, [poll.id, poll.userVote, poll.userInteraction, poll.likes, poll.dislikes]);
+        setReactions(poll.reactions || {});
+    }, [poll.id, poll.userVote, poll.userInteraction, poll.likes, poll.dislikes, poll.reactions]);
 
-    const handleShowInteractors = async (e: React.MouseEvent, type: 'like' | 'dislike' | 'vote') => {
+    const handleShowInteractors = async (e: React.MouseEvent, type: string) => {
         e.stopPropagation();
         setIsLoadingInteractors(true);
-        setInteractorsModal({ type, users: [] });
+        const fetchType = type === 'vote' ? 'vote' : 'all';
+        setInteractorsModal({ type: fetchType, activeTab: type, users: [] });
         try {
             const PollService = (await import('../../services/PollService')).PollService;
-            const users = await PollService.getInteractors(Number(poll.id), type);
-            setInteractorsModal({ type, users });
+            const users = await PollService.getInteractors(Number(poll.id), fetchType);
+            setInteractorsModal({ type: fetchType, activeTab: type, users });
         } catch (error) {
             console.error(error);
         } finally {
@@ -57,52 +61,62 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         }
     };
 
-    const handleInteract = async (type: 'like' | 'dislike') => {
+    const handleReact = async (type: string) => {
         if (readOnly) return;
         if (!isLoggedIn) {
-            requireLogin(() => handleInteract(type));
+            requireLogin(() => handleReact(type));
             return;
         }
         triggerHaptic();
 
         // Optimistic Update
         const previousInteraction = interaction;
+        const newReactions = { ...reactions };
+
         if (interaction === type) {
+            // Un-react
             setInteraction(null);
-            if (type === 'like') setLikesCount(prev => prev - 1);
-            else setDislikesCount(prev => prev - 1);
+            if (newReactions[type] > 0) newReactions[type]--;
+
+            if (type === 'like' || type === '👍') setLikesCount(prev => Math.max(0, prev - 1));
+            if (type === 'dislike' || type === '👎') setDislikesCount(prev => Math.max(0, prev - 1));
         } else {
+            // Switch or New Reaction
             setInteraction(type);
-            if (type === 'like') {
-                setLikesCount(prev => prev + 1);
-                if (previousInteraction === 'dislike') setDislikesCount(prev => prev - 1);
-            } else {
-                setDislikesCount(prev => prev + 1);
-                if (previousInteraction === 'like') setLikesCount(prev => prev - 1);
+
+            // Decrement previous if it exists
+            if (previousInteraction && newReactions[previousInteraction] > 0) {
+                newReactions[previousInteraction]--;
+                if (previousInteraction === 'like' || previousInteraction === '👍') setLikesCount(prev => Math.max(0, prev - 1));
+                if (previousInteraction === 'dislike' || previousInteraction === '👎') setDislikesCount(prev => Math.max(0, prev - 1));
             }
+
+            // Increment new
+            newReactions[type] = (newReactions[type] || 0) + 1;
+            if (type === 'like' || type === '👍') setLikesCount(prev => prev + 1);
+            if (type === 'dislike' || type === '👎') setDislikesCount(prev => prev + 1);
         }
 
+        setReactions(newReactions);
+
         // API Call
-        if (setGlobalLoading) setGlobalLoading(true);
         try {
             const PollService = (await import('../../services/PollService')).PollService;
-            const userId = Number(currentUser.id);
-            if (interaction === type) {
-                await PollService.unlikePoll(Number(poll.id), userId);
-            } else {
-                if (type === 'like') {
-                    await PollService.likePoll(Number(poll.id), userId);
-                } else {
-                    await PollService.dislikePoll(Number(poll.id), userId);
-                }
+            const result = await PollService.reactToPoll(Number(poll.id), Number(currentUser.id), type);
+            if (result.success) {
+                setLikesCount(result.likes);
+                setDislikesCount(result.dislikes);
+                setReactions(result.reactions);
+                setInteraction(result.userInteraction);
             }
         } catch (error) {
-            console.error("Interaction failed, reverting", error);
-            // Revert on error (could imply setting state back)
-        } finally {
-            if (setGlobalLoading) setGlobalLoading(false);
+            console.error("Reaction failed, reverting", error);
+            // In a real app we'd revert to previous state
         }
     };
+
+    // Keep handleInteract for any legacy calls or specific button clicks
+    const handleInteract = (type: 'like' | 'dislike') => handleReact(type);
 
     // State for Ranking Polls
     const [rankedItems, setRankedItems] = useState(poll.options);
@@ -480,56 +494,85 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
             </main>
 
             {/* Action Bar (Footer) */}
-            <footer className="flex-shrink-0 px-4 py-3 bg-white dark:bg-black border-t border-gray-50 dark:border-gray-900">
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-4 sm:gap-6">
-                        <button
-                            onClick={() => handleInteract('like')}
-                            className={`flex flex-col items-center gap-1 group ${interaction === 'like' ? 'text-pink-500' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                        >
-                            <div className={`p-2 rounded-full group-active:scale-90 transition-all ${interaction === 'like' ? 'bg-pink-50 dark:bg-pink-900/20' : ''}`}>
-                                <ThumbUpIcon active={interaction === 'like'} />
-                            </div>
-                            <span
-                                onClick={(e) => { e.stopPropagation(); handleShowInteractors(e, 'like'); }}
-                                className="text-xs font-bold hover:underline cursor-pointer"
-                            >
-                                {likesCount}
-                            </span>
-                        </button>
+            <footer className="flex-shrink-0 px-5 py-4 bg-white dark:bg-[#0A0A0A] border-t border-gray-100 dark:border-gray-900 transition-colors">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 sm:gap-6">
+                        {/* Reaction Core Component */}
+                        <div className="flex items-center bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-1 gap-1">
+                            <ReactionPicker onSelect={handleReact} currentReaction={interaction}>
+                                <button
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all active:scale-95 ${interaction
+                                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                                        : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                        }`}
+                                >
+                                    <div className="relative">
+                                        {!interaction && <ThumbUpIcon active={false} className="w-5 h-5" />}
+                                        {(interaction === 'like' || interaction === '👍') && <ThumbUpIcon active={true} className="w-5 h-5 fill-white" />}
+                                        {(interaction === 'dislike' || interaction === '👎') && <ThumbDownIcon active={true} className="w-5 h-5 fill-white" />}
+                                        {interaction && !['like', 'dislike', '👍', '👎'].includes(interaction) && (
+                                            <span className="text-xl leading-none animate-fade-in-scale">{interaction}</span>
+                                        )}
+                                    </div>
+                                    <span className="text-xs font-bold tracking-tight">
+                                        {(() => {
+                                            if (!interaction) return 'Like';
+                                            const map: Record<string, string> = {
+                                                'like': 'Like', 'dislike': 'Dislike',
+                                                '👍': 'Like', '👎': 'Dislike',
+                                                '❤️': 'Love', '😂': 'Haha', '😮': 'Wow', '😢': 'Sad', '🔥': 'Lit'
+                                            };
+                                            return map[interaction] || 'Reacted';
+                                        })()}
+                                    </span>
+                                </button>
+                            </ReactionPicker>
 
-                        <button
-                            onClick={() => handleInteract('dislike')}
-                            className={`flex flex-col items-center gap-1 group ${interaction === 'dislike' ? 'text-gray-900 dark:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                        >
-                            <div className={`p-2 rounded-full group-active:scale-90 transition-all ${interaction === 'dislike' ? 'bg-gray-100 dark:bg-gray-800' : ''}`}>
-                                <ThumbDownIcon active={interaction === 'dislike'} />
-                            </div>
-                            <span
-                                onClick={(e) => { e.stopPropagation(); handleShowInteractors(e, 'dislike'); }}
-                                className="text-xs font-bold hover:underline cursor-pointer"
+                            {/* Reaction Badge/Count Stack */}
+                            <button
+                                onClick={(e) => {
+                                    const topType = Object.entries(reactions).sort(([, a], [, b]) => b - a)[0]?.[0] || 'like';
+                                    handleShowInteractors(e, topType as any);
+                                }}
+                                className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors group"
                             >
-                                {dislikesCount}
-                            </span>
-                        </button>
+                                <div className="flex items-center -space-x-1.5">
+                                    {Object.entries(reactions)
+                                        .filter(([, count]) => count > 0)
+                                        .sort(([, a], [, b]) => b - a)
+                                        .slice(0, 3)
+                                        .map(([emoji]) => (
+                                            <div key={emoji} className="w-5 h-5 rounded-full glass flex items-center justify-center text-[10px] ring-2 ring-white dark:ring-gray-900 shadow-sm z-10 transition-transform group-hover:-translate-y-0.5">
+                                                {emoji === 'like' ? '👍' : emoji === 'dislike' ? '👎' : emoji}
+                                            </div>
+                                        ))
+                                    }
+                                </div>
+                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                                    {Object.values(reactions).reduce((a, b) => a + b, 0) || (likesCount + dislikesCount > 0 ? (likesCount + dislikesCount) : '')}
+                                </span>
+                            </button>
+                        </div>
 
+                        {/* Comment Action */}
                         <button
                             onClick={() => onNavigate('comments', poll)}
-                            className="flex flex-col items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors group"
+                            className="flex items-center gap-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-2 rounded-2xl transition-all active:scale-95 group"
                         >
-                            <div className="p-2 rounded-full group-active:scale-90 transition-transform">
-                                <ChatIcon />
-                            </div>
+                            <ChatIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
                             <span className="text-xs font-bold">{poll.commentsCount ?? poll.comments?.length ?? 0}</span>
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-2 sm:gap-3">
-                        <button onClick={handleShare} className="p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-gray-900 rounded-full">
-                            <ShareIcon />
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleShare} className="p-2.5 text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-gray-900 rounded-2xl transition-colors active:scale-90">
+                            <ShareIcon className="w-5 h-5" />
                         </button>
                         {poll.pollType !== 'swipe' && (
-                            <button onClick={() => onNavigate('results', poll)} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-black rounded-full text-[13px] font-bold shadow-lg active:scale-95 transition-transform whitespace-nowrap">
+                            <button
+                                onClick={() => onNavigate('results', poll)}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-black rounded-2xl text-xs font-black shadow-lg shadow-black/5 active:scale-95 transition-all hover:shadow-xl"
+                            >
                                 <ChartBarIcon className="w-4 h-4" />
                                 <span>Results</span>
                             </button>
@@ -554,45 +597,88 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
             {
                 interactorsModal && (
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-fade-in p-2 rounded-2xl" onClick={() => setInteractorsModal(null)}>
-                        <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[70%] overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[80%] overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800">
-                                <h3 className="text-lg font-bold capitalize">
-                                    {interactorsModal.type === 'vote' ? 'Signatures' : `Users who ${interactorsModal.type}d`}
+                                <h3 className="text-lg font-bold capitalize flex items-center gap-2">
+                                    {interactorsModal.type === 'vote' ? 'Signatures' : 'Reactions'}
                                 </h3>
                                 <button onClick={() => setInteractorsModal(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"><XIcon /></button>
                             </div>
+
+                            {/* Tabs for Reactions */}
+                            {interactorsModal.type !== 'vote' && (
+                                <div className="flex items-center gap-2 p-2 px-3 border-b border-gray-50 dark:border-gray-800 overflow-x-auto scrollbar-hide">
+                                    <button
+                                        onClick={() => setInteractorsModal({ ...interactorsModal, activeTab: 'all' })}
+                                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${interactorsModal.activeTab === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'}`}
+                                    >
+                                        All {Object.values(reactions).reduce((a, b) => a + b, 0)}
+                                    </button>
+                                    {Object.entries(reactions)
+                                        .filter(([, count]) => count > 0)
+                                        .sort(([, a], [, b]) => b - a)
+                                        .map(([emoji, count]) => (
+                                            <button
+                                                key={emoji}
+                                                onClick={() => setInteractorsModal({ ...interactorsModal, activeTab: emoji })}
+                                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${interactorsModal.activeTab === emoji ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                            >
+                                                <span>{['like', 'dislike'].includes(emoji) ? (emoji === 'like' ? '👍' : '👎') : emoji}</span>
+                                                <span>{count}</span>
+                                            </button>
+                                        ))
+                                    }
+                                </div>
+                            )}
+
                             <div className="flex-grow overflow-y-auto p-2">
                                 {isLoadingInteractors ? (
                                     <div className="flex justify-center p-8">
                                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                                     </div>
-                                ) : interactorsModal.users.length > 0 ? (
-                                    <div className="space-y-1">
-                                        {interactorsModal.users.map(u => (
-                                            <div
-                                                key={u.id}
-                                                className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
-                                                onClick={() => {
-                                                    onNavigate('profile', u);
-                                                    setInteractorsModal(null);
-                                                }}
-                                            >
-                                                <div className="flex items-center space-x-3">
-                                                    <img src={u.avatar} alt={u.username} className="w-8 h-8 rounded-full border border-gray-100 dark:border-gray-800" />
-                                                    <div>
-                                                        <p className="font-bold text-sm text-gray-900 dark:text-white">{u.username}</p>
-                                                        <p className="text-[10px] text-gray-500">{u.points} Points</p>
+                                ) : (() => {
+                                    const filteredUsers = interactorsModal.type === 'vote'
+                                        ? interactorsModal.users
+                                        : interactorsModal.activeTab === 'all'
+                                            ? interactorsModal.users
+                                            : interactorsModal.users.filter(u => u.interactionType === interactorsModal.activeTab);
+
+                                    return filteredUsers.length > 0 ? (
+                                        <div className="space-y-1">
+                                            {filteredUsers.map(u => (
+                                                <div
+                                                    key={u.id}
+                                                    className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
+                                                    onClick={() => {
+                                                        onNavigate('profile', u);
+                                                        setInteractorsModal(null);
+                                                    }}
+                                                >
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className="relative">
+                                                            <img src={u.avatar} alt={u.username} className="w-9 h-9 rounded-full border border-gray-100 dark:border-gray-800" />
+                                                            {u.interactionType && (
+                                                                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 flex items-center justify-center text-[10px] shadow-sm">
+                                                                    {u.interactionType === 'like' ? '👍' : u.interactionType === 'dislike' ? '👎' : u.interactionType}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-sm text-gray-900 dark:text-white">{u.username}</p>
+                                                            <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">{u.points} Points</p>
+                                                        </div>
                                                     </div>
+                                                    <span className="rotate-180 text-gray-400 scale-75"><ChevronLeftIcon /></span>
                                                 </div>
-                                                <span className="rotate-180 text-gray-400 scale-75"><ChevronLeftIcon /></span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center p-8">
-                                        <p className="text-gray-500 text-sm">No {interactorsModal.type === 'vote' ? 'signatures' : interactorsModal.type + 's'} yet.</p>
-                                    </div>
-                                )}
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center p-8 opacity-40">
+                                            <p className="text-4xl mb-2">🤔</p>
+                                            <p className="text-gray-500 text-sm font-bold">No {interactorsModal.type === 'vote' ? 'signatures' : 'reactions'} found here.</p>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>

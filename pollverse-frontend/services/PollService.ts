@@ -148,59 +148,67 @@ export const PollService = {
     },
 
     // ============ LIKES/DISLIKES ============
-    likePoll: async (pollId: number, userId: number) => {
+    reactToPoll: async (pollId: number, userId: number, type: string) => {
         try {
-            const response = await fetch(`${API_URL}/${pollId}/like`, {
+            const response = await fetch(`${API_URL}/${pollId}/react`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId })
+                body: JSON.stringify({ userId, type })
             });
             return response.json();
         } catch (error) {
-            console.error("Failed to like poll:", error);
+            console.error("Failed to react to poll:", error);
             throw error;
         }
     },
-
-    dislikePoll: async (pollId: number, userId: number) => {
-        try {
-            const response = await fetch(`${API_URL}/${pollId}/dislike`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId })
-            });
-            return response.json();
-        } catch (error) {
-            console.error("Failed to dislike poll:", error);
-            throw error;
-        }
-    },
-
-    unlikePoll: async (pollId: number, userId: number) => {
-        try {
-            const response = await fetch(`${API_URL}/${pollId}/like`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId })
-            });
-            return response.json();
-        } catch (error) {
-            console.error("Failed to unlike poll:", error);
-            throw error;
-        }
-    },
-    getInteractors: async (pollId: number, type: 'like' | 'dislike' | 'vote'): Promise<User[]> => {
+    getInteractors: async (pollId: number, type: string): Promise<User[]> => {
         try {
             const response = await fetch(`${API_URL}/${pollId}/interactors?type=${type}`);
             if (!response.ok) return [];
             return response.json();
         } catch (error) {
-            console.error(`Failed to get ${type}rs:`, error);
+            console.error(`Failed to get interactors:`, error);
             return [];
         }
     },
 
-    // ============ MODERATION ============
+    // ============ COMMENTS ============
+    getComments: async (pollId: number, userId?: number) => {
+        try {
+            const query = userId ? `?userId=${userId}` : '';
+            const response = await fetch(`${API_URL}/${pollId}/comments${query}`);
+            return response.json();
+        } catch (error) {
+            console.error("Failed to fetch comments:", error);
+            return [];
+        }
+    },
+    addComment: async (pollId: number, userId: number, text: string, parentId?: number) => {
+        try {
+            const response = await fetch(`${API_URL}/${pollId}/comments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, text, parentId })
+            });
+            return response.json();
+        } catch (error) {
+            console.error("Failed to add comment:", error);
+            throw error;
+        }
+    },
+    reactToComment: async (commentId: number, userId: number, type: string) => {
+        try {
+            const response = await fetch(`${API_URL}/comments/${commentId}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, type })
+            });
+            return response.json();
+        } catch (error) {
+            console.error("Failed to react to comment:", error);
+            throw error;
+        }
+    },
     moderatePoll: async (pollId: number, moderatorId: number, action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', comment?: string) => {
         try {
             const response = await fetch(`${API_URL}/${pollId}/moderate`, {

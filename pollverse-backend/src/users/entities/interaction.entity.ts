@@ -1,30 +1,38 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  Unique,
+} from 'typeorm';
 import { User } from './user.entity';
 import { Poll } from '../../polls/entities/poll.entity';
 
 @Entity()
 @Unique(['userId', 'pollId']) // One interaction per user per poll
 export class Interaction {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column()
-    userId: number;
+  @Column()
+  userId: number;
 
-    @Column()
-    pollId: number;
+  @Column()
+  pollId: number;
 
-    @Column({ type: 'varchar', nullable: true }) // 'like' or 'dislike' or null
-    type: 'like' | 'dislike' | null;
+  @Column({ type: 'varchar', nullable: true })
+  type: string | null; // e.g., 'like', 'dislike', '👍', '❤️'
 
-    @CreateDateColumn()
-    createdAt: Date;
+  @CreateDateColumn()
+  createdAt: Date;
 
-    @ManyToOne(() => User)
-    @JoinColumn({ name: 'userId' })
-    user: User;
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
-    @ManyToOne(() => Poll)
-    @JoinColumn({ name: 'pollId' })
-    poll: Poll;
+  @ManyToOne(() => Poll)
+  @JoinColumn({ name: 'pollId' })
+  poll: Poll;
 }
