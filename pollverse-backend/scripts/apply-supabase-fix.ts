@@ -32,12 +32,18 @@ async function applyFix() {
             'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "trustLevel" integer DEFAULT 1',
             'ALTER TABLE "comment" ADD COLUMN IF NOT EXISTS "parentId" integer',
             'ALTER TABLE "comment" ADD COLUMN IF NOT EXISTS "replyCount" integer DEFAULT 0',
+            'ALTER TABLE "comment" ADD COLUMN IF NOT EXISTS "reactions" text',
+            'ALTER TABLE "poll" ADD COLUMN IF NOT EXISTS "reactions" text',
+            'ALTER TABLE "interaction" ALTER COLUMN "type" TYPE character varying',
+            'ALTER TABLE "interaction" ALTER COLUMN "type" DROP NOT NULL',
             `CREATE TABLE IF NOT EXISTS "comment_like" (
                 "id" SERIAL PRIMARY KEY,
                 "userId" integer NOT NULL,
                 "commentId" integer NOT NULL,
+                "type" character varying DEFAULT 'like',
                 "createdAt" TIMESTAMP NOT NULL DEFAULT now()
-            )`
+            )`,
+            'ALTER TABLE "comment_like" ADD COLUMN IF NOT EXISTS "type" character varying DEFAULT \'like\''
         ];
 
         for (const query of queries) {
