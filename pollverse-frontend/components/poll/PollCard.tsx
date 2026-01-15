@@ -115,8 +115,6 @@ const PollCard: React.FC<PollCardProps> = ({ poll, onNavigate, isLoggedIn, requi
         }
     };
 
-    // Keep handleInteract for any legacy calls or specific button clicks
-    const handleInteract = (type: 'like' | 'dislike') => handleReact(type);
 
     // State for Ranking Polls
     const [rankedItems, setRankedItems] = useState(poll.options);

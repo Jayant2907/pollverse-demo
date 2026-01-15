@@ -10,7 +10,7 @@ interface ReactionPickerProps {
 
 const ReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect, currentReaction, children }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutRef = useRef<any>(null);
 
     const handleMouseEnter = () => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
