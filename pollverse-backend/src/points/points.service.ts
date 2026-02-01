@@ -14,7 +14,7 @@ export class PointsService {
     private pointTransactionRepository: Repository<PointTransaction>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) {}
+  ) { }
 
   private getLevel(points: number): number {
     if (points < 100) return 1;
@@ -169,5 +169,15 @@ export class PointsService {
       level,
       title: this.getTitle(level),
     };
+  }
+  /**
+   * Get top N users for moderator assignments
+   */
+  async getTopModerators(limit: number): Promise<User[]> {
+    return this.userRepository.find({
+      order: { points: 'DESC', id: 'ASC' },
+      take: limit,
+      select: ['id', 'username', 'points'],
+    });
   }
 }

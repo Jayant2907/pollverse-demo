@@ -93,4 +93,26 @@ export class Poll {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  moderationDeadline: Date | null;
+
+  @Column({ default: false })
+  isEscalated: boolean;
+
+  @Column({ default: false })
+  isPaid: boolean;
+
+  @Column({ default: 'ALL' }) // ALL, PAID_ONLY, CATEGORY_SPECIFIC
+  visibilityCategory: string;
+
+  @Column({ default: 1 })
+  currentModerationTier: number;
+
+  @Column({ type: 'int', nullable: true })
+  assignedModeratorId: number | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assignedModeratorId' })
+  assignedModerator: User;
 }

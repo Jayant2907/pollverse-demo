@@ -7,6 +7,7 @@ import { Comment } from './entities/comment.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Vote } from './entities/vote.entity';
 import { ModerationLog } from './entities/moderation-log.entity';
+import { SystemConfig } from './entities/system-config.entity';
 import { SchedulingService } from './scheduling.service';
 
 import { Interaction } from '../users/entities/interaction.entity';
@@ -22,6 +23,7 @@ import { PointsModule } from '../points/points.module';
       Vote,
       Interaction,
       ModerationLog,
+      SystemConfig,
     ]),
     NotificationsModule,
     PointsModule,
@@ -30,4 +32,4 @@ import { PointsModule } from '../points/points.module';
   controllers: [PollsController],
   providers: [PollsService, SchedulingService],
 })
-export class PollsModule {}
+export class PollsModule { }

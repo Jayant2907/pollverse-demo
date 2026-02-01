@@ -209,7 +209,7 @@ export const PollService = {
             throw error;
         }
     },
-    moderatePoll: async (pollId: number, moderatorId: number, action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES', comment?: string) => {
+    moderatePoll: async (pollId: number, moderatorId: number, action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'PUSH_NEXT_TIER', comment?: string) => {
         try {
             const response = await fetch(`${API_URL}/${pollId}/moderate`, {
                 method: 'POST',
@@ -233,4 +233,29 @@ export const PollService = {
             return [];
         }
     },
+
+    // ============ SYSTEM CONFIG ============
+    getSystemConfig: async () => {
+        try {
+            const response = await fetch(`${API_URL}/config`);
+            if (!response.ok) return null;
+            return response.json();
+        } catch (error) {
+            return null;
+        }
+    },
+
+    updateSystemConfig: async (config: any) => {
+        try {
+            const response = await fetch(`${API_URL}/config`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            return response.json();
+        } catch (error) {
+            console.error("Failed to update system config:", error);
+            throw error;
+        }
+    }
 };

@@ -1,7 +1,7 @@
 import { PollService } from '../services/PollService';
 import { UserService } from '../services/UserService';
 import { CommentService } from '../services/CommentService';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DuplicateIcon } from '../components/Icons';
 
 // 10 Mock Users with login credentials
@@ -338,6 +338,9 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
                     </div>
                 </div>
 
+                {/* System Configuration */}
+                <SystemConfigSection />
+
                 {/* User Credentials */}
                 <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-800">
                     <h2 className="font-bold dark:text-white mb-2">🔐 Test Credentials</h2>
@@ -351,6 +354,82 @@ const AdminPage = ({ onBack }: { onBack: () => void }) => {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+};
+
+const SystemConfigSection = () => {
+    const [config, setConfig] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+    const [status, setStatus] = useState('');
+
+    useEffect(() => {
+        const fetchConfig = async () => {
+            const data = await PollService.getSystemConfig();
+            if (data) setConfig(data);
+        };
+        fetchConfig();
+    }, []);
+
+    const handleSave = async () => {
+        setLoading(true);
+        try {
+            await PollService.updateSystemConfig(config);
+            setStatus('✅ Config Updated!');
+            setTimeout(() => setStatus(''), 3000);
+        } catch (e) {
+            setStatus('❌ Update Failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!config) return (
+        <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-800 flex items-center justify-center py-8">
+            <div className="flex flex-col items-center gap-2">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs text-gray-500">Connecting to System Configuration...</span>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-800 space-y-4">
+            <h2 className="font-bold dark:text-white flex items-center justify-between">
+                ⚙️ System Configuration
+                {status && <span className="text-xs font-normal text-blue-500">{status}</span>}
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4 text-xs font-medium">
+                <div>
+                    <label className="text-gray-500 mb-1 block">Review Time Limit (h)</label>
+                    <input type="number" value={config.reviewTimeLimitHours} onChange={e => setConfig({ ...config, reviewTimeLimitHours: +e.target.value })} className="w-full bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5 border border-transparent focus:border-blue-500" />
+                </div>
+                <div>
+                    <label className="text-gray-500 mb-1 block">Penalty Points</label>
+                    <input type="number" value={config.penaltyPointsPerMiss} onChange={e => setConfig({ ...config, penaltyPointsPerMiss: +e.target.value })} className="w-full bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5 border border-transparent focus:border-blue-500" />
+                </div>
+                <div>
+                    <label className="text-gray-500 mb-1 block">Weight: Likes</label>
+                    <input type="number" step="0.1" value={config.weightLikes} onChange={e => setConfig({ ...config, weightLikes: +e.target.value })} className="w-full bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5 border border-transparent focus:border-blue-500" />
+                </div>
+                <div>
+                    <label className="text-gray-500 mb-1 block">Paid Boost Factor</label>
+                    <input type="number" step="0.1" value={config.paidPollBoostFactor} onChange={e => setConfig({ ...config, paidPollBoostFactor: +e.target.value })} className="w-full bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5 border border-transparent focus:border-blue-500" />
+                </div>
+                <div>
+                    <label className="text-gray-500 mb-1 block">Moderator Pool Size</label>
+                    <input type="number" value={config.moderatorGroupSize} onChange={e => setConfig({ ...config, moderatorGroupSize: +e.target.value })} className="w-full bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5 border border-transparent focus:border-blue-500" />
+                </div>
+                <div>
+                    <label className="text-gray-500 mb-1 block">Required Approvals</label>
+                    <input type="number" value={config.requiredApprovals} onChange={e => setConfig({ ...config, requiredApprovals: +e.target.value })} className="w-full bg-gray-50 dark:bg-gray-800 rounded px-2 py-1.5 border border-transparent focus:border-blue-500" />
+                </div>
+            </div>
+
+            <button onClick={handleSave} disabled={loading} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-sm disabled:opacity-50">
+                {loading ? 'Saving...' : 'Save Configuration'}
+            </button>
         </div>
     );
 };

@@ -9,6 +9,7 @@ import { CommentLike } from './entities/comment-like.entity';
 import { Vote } from './entities/vote.entity';
 import { Interaction } from '../users/entities/interaction.entity';
 import { ModerationLog } from './entities/moderation-log.entity';
+import { SystemConfig } from './entities/system-config.entity';
 
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -29,6 +30,8 @@ export class PollsService {
     private commentLikeRepository: Repository<CommentLike>,
     @InjectRepository(ModerationLog)
     private moderationLogRepository: Repository<ModerationLog>,
+    @InjectRepository(SystemConfig)
+    private systemConfigRepository: Repository<SystemConfig>,
 
     private readonly notificationsService: NotificationsService,
     private readonly pointsService: PointsService,
@@ -36,11 +39,35 @@ export class PollsService {
 
   async create(createPollDto: CreatePollDto) {
     const status = createPollDto.status || 'PENDING';
+
+    // Fetch system config for deadline
+    let config = await this.systemConfigRepository.findOne({ where: { id: 1 } });
+    if (!config) {
+      config = await this.systemConfigRepository.save(this.systemConfigRepository.create({ id: 1 }));
+    }
+
+    let deadline: Date | null = null;
+    if (status === 'PENDING') {
+      const defaultDeadline = new Date(Date.now() + config.reviewTimeLimitHours * 60 * 60 * 1000);
+      if (createPollDto.scheduledAt) {
+        // If scheduled time is SOONER than default deadline, use scheduled time.
+        // We give them at least 1 hour just in case, or strict deadline?
+        // Let's stick strictly to "Must be reviewed before launch".
+        const scheduledTime = new Date(createPollDto.scheduledAt);
+        deadline = scheduledTime < defaultDeadline ? scheduledTime : defaultDeadline;
+      } else {
+        deadline = defaultDeadline;
+      }
+    }
+
     const poll = this.pollsRepository.create({
       ...createPollDto,
       votes: {},
       status: status,
       createdAt: new Date(),
+      moderationDeadline: deadline,
+      isPaid: (createPollDto as any).isPaid || false,
+      visibilityCategory: (createPollDto as any).visibilityCategory || 'ALL',
     });
 
     if (status !== 'DRAFT') {
@@ -49,13 +76,19 @@ export class PollsService {
         const userRank = await this.pointsService.getUserRank(
           createPollDto.creatorId,
         );
-        if (userRank && (userRank.points >= 2000 || userRank.rank <= 10)) {
+        // During testing, we want most polls to go to review. 
+        // Only very high trust (10k+ points) bypasses.
+        if (userRank && userRank.points >= 10000) {
           poll.status = poll.scheduledAt ? 'SCHEDULED' : 'PUBLISHED';
         }
       }
     }
 
     const savedPoll = await this.pollsRepository.save(poll);
+
+    if (savedPoll.status === 'PENDING') {
+      await this.assignModerator(savedPoll);
+    }
 
     // Update user's pollsCount if it's not a draft
     if (savedPoll.creatorId && savedPoll.status !== 'DRAFT') {
@@ -73,6 +106,55 @@ export class PollsService {
     }
 
     return savedPoll;
+  }
+
+  async assignModerator(poll: Poll, excludeIds: number[] = []) {
+    const config = await this.systemConfigRepository.findOne({
+      where: { id: 1 },
+    }) || { moderatorGroupSize: 3, requiredApprovals: 1 } as SystemConfig;
+
+    // Get the top N moderators (enough to have options after exclusion)
+    const topModerators = await this.pointsService.getTopModerators(
+      config.moderatorGroupSize + excludeIds.length,
+    );
+
+    // Filter by group size and exclusions
+    const candidates = topModerators
+      .filter((m) => !excludeIds.includes(m.id))
+      .slice(0, config.moderatorGroupSize);
+
+    if (candidates.length === 0) {
+      poll.assignedModeratorId = null; // Revert to pool if no specific assignment possible
+      await this.pollsRepository.save(poll);
+      return;
+    }
+
+    // Find the current load for each moderator in the candidates group
+    const loads = await this.pollsRepository
+      .createQueryBuilder('poll')
+      .select('poll.assignedModeratorId', 'moderatorId')
+      .addSelect('COUNT(*)', 'count')
+      .where('poll.status = :status', { status: 'PENDING' })
+      .andWhere('poll.assignedModeratorId IN (:...ids)', {
+        ids: candidates.map((m) => m.id),
+      })
+      .groupBy('poll.assignedModeratorId')
+      .getRawMany();
+
+    const loadMap = new Map(
+      loads.map((l) => [parseInt(l.moderatorId), parseInt(l.count)]),
+    );
+
+    // Sort candidates by current load, then by points
+    candidates.sort((a, b) => {
+      const loadA = loadMap.get(a.id) || 0;
+      const loadB = loadMap.get(b.id) || 0;
+      if (loadA !== loadB) return loadA - loadB;
+      return b.points - a.points;
+    });
+
+    poll.assignedModeratorId = candidates[0].id;
+    await this.pollsRepository.save(poll);
   }
 
   async seed(pollsData: CreatePollDto[]) {
@@ -142,15 +224,17 @@ export class PollsService {
       qb.andWhere('poll.tags LIKE :tag', { tag: `%${query.tag}%` });
     }
 
-    if (query.category === 'Trending') {
-      qb.orderBy('poll.likes', 'DESC');
-    } else {
-      qb.orderBy('poll.createdAt', 'DESC');
-    }
-
     // Status Filtering
     if (query.category === 'Pending') {
       qb.andWhere('poll.status = :status', { status: 'PENDING' });
+
+      // If user is not Super Admin, hide escalated polls
+      if (query.userId) {
+        const user = await this.pollsRepository.manager.getRepository('User').findOneBy({ id: query.userId }) as any;
+        if (user && user.role !== 'SUPER_ADMIN') {
+          qb.andWhere('poll.isEscalated = :isEscalated', { isEscalated: false });
+        }
+      }
     } else if (
       query.category === 'Drafts' &&
       query.creatorId &&
@@ -168,6 +252,30 @@ export class PollsService {
     } else {
       // General feed
       qb.andWhere('poll.status = :status', { status: 'PUBLISHED' });
+
+      // PAID POLL VISIBILITY
+      if (query.userId) {
+        const user = await this.pollsRepository.manager.getRepository('User').findOneBy({ id: query.userId }) as any;
+        if (user && user.role !== 'SUPER_ADMIN' && user.trustLevel < 5) {
+          qb.andWhere('(poll.visibilityCategory = :vis OR poll.visibilityCategory IS NULL OR poll.visibilityCategory = \'ALL\')', { vis: 'ALL' });
+        }
+      } else {
+        // Anonymous users only see 'ALL'
+        qb.andWhere('(poll.visibilityCategory = :vis OR poll.visibilityCategory IS NULL OR poll.visibilityCategory = \'ALL\')', { vis: 'ALL' });
+      }
+    }
+
+    if (query.category === 'Trending') {
+      let config = await this.systemConfigRepository.findOne({ where: { id: 1 } });
+      if (config) {
+        // Note: PostgreSQL doesn't allow virtual columns in ORDER BY directly unless selected
+        qb.addSelect(`(poll.likes * ${config.weightLikes} + poll.dislikes * -1 + 0) * (CASE WHEN poll.isPaid THEN ${config.paidPollBoostFactor} ELSE 1 END)`, 'trendingScore');
+        qb.orderBy('trendingScore', 'DESC');
+      } else {
+        qb.orderBy('poll.likes', 'DESC');
+      }
+    } else {
+      qb.orderBy('poll.createdAt', 'DESC');
     }
 
     // Scheduling Filter: Only show polls where scheduledAt is null or in the past
@@ -191,6 +299,7 @@ export class PollsService {
     ) {
       qb.leftJoinAndSelect('poll.moderationLogs', 'logs');
       qb.leftJoinAndSelect('logs.moderator', 'moderator');
+      qb.leftJoinAndSelect('poll.assignedModerator', 'assignedMod');
       qb.orderBy('logs.createdAt', 'DESC');
     }
 
@@ -727,30 +836,53 @@ export class PollsService {
     }));
   }
 
-  // ============ MODERATION ============
   async moderatorAction(
     pollId: number,
     moderatorId: number,
-    action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES',
+    action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'PUSH_NEXT_TIER',
     comment?: string,
   ) {
     const poll = await this.pollsRepository.findOneBy({ id: pollId });
     if (!poll) return { success: false, message: 'Poll not found' };
 
-    // Limit to Top 4 users
-    const rankInfo = await this.pointsService.getUserRank(moderatorId);
-    if (!rankInfo || rankInfo.rank > 4) {
-      return {
-        success: false,
-        message: 'Only Top 4 users on the leaderboard can moderate content.',
-      };
+    const moderator = await this.pollsRepository.manager.getRepository('User').findOneBy({ id: moderatorId }) as any;
+    if (!moderator) return { success: false, message: 'User not found' };
+
+    const isSuperAdmin = moderator.role === 'SUPER_ADMIN';
+
+    if (!isSuperAdmin) {
+      // Logic for regular moderators
+      const rankInfo = await this.pointsService.getUserRank(moderatorId);
+
+      // Tiered logic: Tier 1 is Rank 1-4, Tier 2 is Rank 5-10, etc.
+      // Or just check if poll.currentModerationTier matches moderator's capability
+      // For now, let's stick to the user's "cascading" idea.
+      // If poll is in Tier 1, only Rank 1-4 can touch it.
+      // If poll is pushed to Tier 2, maybe Rank 5-10 can touch it?
+
+      const allowedRankMax = poll.currentModerationTier === 1 ? 4 : 10;
+
+      if (!rankInfo || rankInfo.rank > allowedRankMax) {
+        return {
+          success: false,
+          message: `Only users with sufficient rank can moderate this poll (Tier ${poll.currentModerationTier}).`,
+        };
+      }
+
+      // Check if poll is escalated (Super Admin only)
+      if (poll.isEscalated) {
+        return {
+          success: false,
+          message: 'This poll has been escalated to Super Admin.',
+        };
+      }
     }
 
     // Prevent duplicate actions
     const existing = await this.moderationLogRepository.findOne({
-      where: { pollId, moderatorId, action },
+      where: { pollId, moderatorId, action: action as any },
     });
-    if (existing) {
+    if (existing && action !== 'PUSH_NEXT_TIER') {
       return {
         success: false,
         message: `You have already ${action.toLowerCase().replace('_', ' ')}d this poll.`,
@@ -760,16 +892,26 @@ export class PollsService {
     const log = this.moderationLogRepository.create({
       pollId,
       moderatorId,
-      action,
+      action: action as any,
       comment,
     });
     await this.moderationLogRepository.save(log);
 
     if (action === 'REJECT') {
       poll.status = 'REJECTED';
+      poll.moderationDeadline = null;
       await this.pollsRepository.save(poll);
     } else if (action === 'REQUEST_CHANGES') {
       poll.status = 'CHANGES_REQUESTED';
+      poll.moderationDeadline = null;
+      await this.pollsRepository.save(poll);
+    } else if (action === 'PUSH_NEXT_TIER') {
+      poll.currentModerationTier += 1;
+      // Refresh deadline for new tier?
+      let config = await this.systemConfigRepository.findOne({ where: { id: 1 } });
+      if (config) {
+        poll.moderationDeadline = new Date(Date.now() + config.reviewTimeLimitHours * 60 * 60 * 1000);
+      }
       await this.pollsRepository.save(poll);
     } else if (action === 'APPROVE') {
       // Check distinct approvals
@@ -781,8 +923,16 @@ export class PollsService {
         .getRawOne();
 
       const approvalCount = parseInt(result.count || '0');
-      if (approvalCount >= 2) {
+      // If Super Admin approves, it's instant?
+      const config = await this.systemConfigRepository.findOne({
+        where: { id: 1 },
+      });
+      const threshold = config?.requiredApprovals ?? 1;
+
+      if (approvalCount >= threshold || isSuperAdmin) {
         poll.status = 'PUBLISHED';
+        poll.moderationDeadline = null;
+        poll.isEscalated = false;
         await this.pollsRepository.save(poll);
         // Award creator points
         if (poll.creatorId) {
@@ -797,7 +947,7 @@ export class PollsService {
       }
     }
 
-    return { success: true, status: poll.status };
+    return { success: true, status: poll.status, currentTier: poll.currentModerationTier };
   }
 
   async getModerationHistory(pollId: number) {
@@ -806,5 +956,34 @@ export class PollsService {
       relations: ['moderator'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // ============ SYSTEM CONFIG ============
+  async getSystemConfig() {
+    let config = await this.systemConfigRepository.findOne({ where: { id: 1 } });
+    if (!config) {
+      config = await this.systemConfigRepository.save(this.systemConfigRepository.create({ id: 1 }));
+    }
+
+    // Ensure defaults if missing (handle existing empty row)
+    let needsSave = false;
+    if (config.weightVotes == null) { config.weightVotes = 1.0; needsSave = true; }
+    if (config.weightLikes == null) { config.weightLikes = 2.0; needsSave = true; }
+    if (config.weightComments == null) { config.weightComments = 1.5; needsSave = true; }
+    if (config.paidPollBoostFactor == null) { config.paidPollBoostFactor = 2.0; needsSave = true; }
+    if (config.penaltyPointsPerMiss == null) { config.penaltyPointsPerMiss = 50; needsSave = true; }
+    if (config.reviewTimeLimitHours == null) { config.reviewTimeLimitHours = 24; needsSave = true; }
+
+    if (needsSave) {
+      config = await this.systemConfigRepository.save(config);
+    }
+
+    return config;
+  }
+
+  async updateSystemConfig(update: any) {
+    let config = await this.getSystemConfig();
+    Object.assign(config, update);
+    return this.systemConfigRepository.save(config);
   }
 }

@@ -79,6 +79,9 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
         return options.every(opt => opt.text.trim());
     };
 
+    const [isPaid, setIsPaid] = useState(initialData?.isPaid || false);
+    const [visibilityCategory, setVisibilityCategory] = useState(initialData?.visibilityCategory || 'ALL');
+
     const handleSubmit = (status: string = 'PENDING') => {
         if (!isFormValid()) return;
 
@@ -98,6 +101,8 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
             goal_threshold: (pollType === 'petition' && goalThreshold) ? parseInt(goalThreshold) : undefined,
             id: initialData?.id,
             status: status as any,
+            isPaid,
+            visibilityCategory,
         };
         onPollCreate(pollData);
     };
@@ -320,6 +325,34 @@ const AddPollPage: React.FC<AddPollPageProps> = ({ onBack, onPollCreate, initial
                                 />
                                 <p className="text-xs text-gray-500 mt-1">Poll will close once it reaches this many votes.</p>
                             </div>
+
+                            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">🚀 Promote as Paid Poll</span>
+                                    <button
+                                        onClick={() => setIsPaid(!isPaid)}
+                                        className={`w-12 h-6 rounded-full transition-colors relative ${isPaid ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-700'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isPaid ? 'left-7' : 'left-1'}`}></div>
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1">Paid polls get boosted visibility across the platform.</p>
+                            </div>
+
+                            {isPaid && (
+                                <div className="animate-slide-down">
+                                    <InputLabel>Visibility Access</InputLabel>
+                                    <select
+                                        value={visibilityCategory}
+                                        onChange={e => setVisibilityCategory(e.target.value)}
+                                        className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                    >
+                                        <option value="ALL">Everyone (Global Reach)</option>
+                                        <option value="PAID_ONLY">Paid Users Only</option>
+                                        <option value="PREMIUM">Premium Category</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     )}
                 </section>

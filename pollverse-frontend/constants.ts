@@ -14,7 +14,8 @@ export const MOCK_USER: User = {
   pollsCreated: 15,
   pollsVotedOn: [],
   following: [], followers: [],
-  pollsCount: 15
+  pollsCount: 15,
+  role: 'SUPER_ADMIN'
 };
 
 export const INITIAL_MOCK_POLLS: Poll[] = [
