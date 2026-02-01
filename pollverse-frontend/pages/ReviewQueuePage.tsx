@@ -38,7 +38,7 @@ const ReviewQueuePage: React.FC<ReviewQueuePageProps> = ({ currentUser, onBack, 
         fetchQueue();
     }, []);
 
-    const handleAction = async (action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES') => {
+    const handleAction = async (action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'PUSH_NEXT_TIER') => {
         if (!pendingPolls[currentIndex]) return;
 
         const pollId = Number(pendingPolls[currentIndex].id);
@@ -46,7 +46,7 @@ const ReviewQueuePage: React.FC<ReviewQueuePageProps> = ({ currentUser, onBack, 
         if (setGlobalLoading) setGlobalLoading(true);
         try {
             await PollService.moderatePoll(pollId, Number(currentUser.id), action, feedback);
-            showToast(`${action === 'APPROVE' ? 'Approved' : action === 'REJECT' ? 'Rejected' : 'Changes Requested'}!`);
+            showToast(`${action === 'APPROVE' ? 'Approved' : action === 'REJECT' ? 'Rejected' : action === 'PUSH_NEXT_TIER' ? 'Pushed to Next Tier' : 'Changes Requested'}!`);
 
             // Remove from local list
             const updated = [...pendingPolls];
@@ -71,6 +71,15 @@ const ReviewQueuePage: React.FC<ReviewQueuePageProps> = ({ currentUser, onBack, 
     };
 
     const currentPoll = pendingPolls[currentIndex];
+
+    const getTimeRemaining = (deadline?: string | Date) => {
+        if (!deadline) return null;
+        const diff = new Date(deadline).getTime() - new Date().getTime();
+        if (diff < 0) return 'OVERDUE';
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff / (1000 * 60)) % 60);
+        return `${hours}h ${mins}m left`;
+    };
 
     if (isLoading) {
         return (
@@ -125,9 +134,14 @@ const ReviewQueuePage: React.FC<ReviewQueuePageProps> = ({ currentUser, onBack, 
                             <ShieldCheck className="w-5 h-5 text-blue-600" />
                             <h2 className="text-lg font-bold leading-none">Review Queue</h2>
                         </div>
-                        <span className="text-[11px] font-black text-blue-600/60 uppercase tracking-tighter mt-1">
-                            {currentIndex + 1} of {pendingPolls.length}
-                        </span>
+                        <div className="flex items-center space-x-2 mt-1">
+                            <span className="text-[11px] font-black text-blue-600/60 uppercase tracking-tighter">
+                                {currentIndex + 1} of {pendingPolls.length}
+                            </span>
+                            {currentPoll?.isEscalated && (
+                                <span className="bg-red-100 text-red-600 dark:bg-red-900/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">Escalated</span>
+                            )}
+                        </div>
                     </div>
 
                     <button
@@ -139,7 +153,14 @@ const ReviewQueuePage: React.FC<ReviewQueuePageProps> = ({ currentUser, onBack, 
                     </button>
                 </div>
 
-                <div className="w-10"></div> {/* Spacer for balance */}
+                <div className="text-right">
+                    {currentPoll?.moderationDeadline && (
+                        <div className="text-[10px] font-bold text-orange-500 uppercase">
+                            {getTimeRemaining(currentPoll.moderationDeadline)}
+                        </div>
+                    )}
+                    <div className="text-[9px] text-gray-400 uppercase font-medium">Tier {currentPoll?.currentModerationTier || 1}</div>
+                </div>
             </header>
 
             {/* Content Swiper Style */}
@@ -193,24 +214,31 @@ const ReviewQueuePage: React.FC<ReviewQueuePageProps> = ({ currentUser, onBack, 
                         </div>
                     </div>
                 ) : (
-                    <div className="flex gap-2 h-16">
+                    <div className="flex gap-1.5 h-16">
                         <button
                             onClick={() => { setShowFeedbackInput(true); setCurrentAction('REJECT'); }}
-                            className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-sm transition-all border border-red-200 flex flex-col items-center justify-center space-y-1"
+                            className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold text-[10px] transition-all border border-red-200 flex flex-col items-center justify-center space-y-1"
                         >
                             <ShieldAlert className="w-5 h-5" />
                             <span>Reject</span>
                         </button>
                         <button
                             onClick={() => { setShowFeedbackInput(true); setCurrentAction('REQUEST_CHANGES'); }}
-                            className="flex-1 bg-yellow-50 hover:bg-yellow-100 text-yellow-600 rounded-xl font-bold text-sm transition-all border border-yellow-200 flex flex-col items-center justify-center space-y-1"
+                            className="flex-1 bg-yellow-50 hover:bg-yellow-100 text-yellow-600 rounded-xl font-bold text-[10px] transition-all border border-yellow-200 flex flex-col items-center justify-center space-y-1"
                         >
                             <FileEdit className="w-5 h-5" />
-                            <span>Request Edit</span>
+                            <span>Edit Request</span>
+                        </button>
+                        <button
+                            onClick={() => handleAction('PUSH_NEXT_TIER')}
+                            className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-bold text-[10px] transition-all border border-blue-200 flex flex-col items-center justify-center space-y-1"
+                        >
+                            <ChevronLeftIcon className="w-5 h-5 rotate-[270deg]" />
+                            <span>Escalate</span>
                         </button>
                         <button
                             onClick={() => handleAction('APPROVE')}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm shadow-md transition-all flex flex-col items-center justify-center space-y-1"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-[10px] shadow-md transition-all flex flex-col items-center justify-center space-y-1"
                         >
                             <ShieldCheck className="w-5 h-5" />
                             <span>Approve</span>

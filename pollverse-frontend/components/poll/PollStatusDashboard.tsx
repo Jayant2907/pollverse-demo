@@ -85,12 +85,19 @@ const PollStatusDashboard: React.FC<PollStatusDashboardProps> = ({ polls, curren
                 case 'PUBLISHED': return { title: 'Live on feed', desc: 'Your poll is active and collecting votes.' };
                 case 'REJECTED': return { title: 'Not approved', desc: 'Needs changes to meet guidelines.' };
                 case 'CHANGES_REQUESTED': return { title: 'Changes requested', desc: 'Please update your poll based on the feedback.' };
-                case 'PENDING': return { title: 'Under review', desc: "We're taking a look to ensure everything meets our guidelines." };
+                case 'PENDING':
+                    const pool = selectedPoll.currentModerationTier === 1 ? 'Tier 1 Moderators (Top 4)' : selectedPoll.currentModerationTier === 2 ? 'Tier 2 Moderators (Top 10)' : 'Super Admin Team';
+                    const activeMod = selectedPoll.assignedModerator ? `Currently being reviewed by ${selectedPoll.assignedModerator.username}` : `Waiting for pick-up from ${pool}`;
+                    return {
+                        title: 'Under review',
+                        desc: "We're taking a look to ensure everything meets our guidelines.",
+                        details: activeMod
+                    };
                 default: return { title: 'Under review', desc: '' };
             }
         };
 
-        const { title: currentTitle, desc: currentDesc } = getTitleAndDesc(selectedPoll.status);
+        const { title: currentTitle, desc: currentDesc, details } = getTitleAndDesc(selectedPoll.status);
 
         return (
             <div className="space-y-6 my-8">
@@ -111,9 +118,16 @@ const PollStatusDashboard: React.FC<PollStatusDashboardProps> = ({ polls, curren
                     </div>
 
                     <div className="pl-[52px]">
-                        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+                        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-1">
                             {currentDesc}
                         </p>
+
+                        {details && (
+                            <div className="flex items-center space-x-2 text-[11px] font-bold text-blue-600/70 dark:text-blue-400/70 uppercase tracking-tight py-1">
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                <span>{details}</span>
+                            </div>
+                        )}
 
                         {selectedPoll.status === 'CHANGES_REQUESTED' && (
                             <button
@@ -240,9 +254,9 @@ const PollStatusDashboard: React.FC<PollStatusDashboardProps> = ({ polls, curren
             </div>
 
             {/* Right Column: Sticky Preview (40%) */}
-            <div className="hidden md:flex w-2/5 bg-gray-50 dark:bg-gray-900 items-center justify-center p-8 sticky top-0 h-full">
+            <div className="hidden md:flex w-2/5 bg-gray-50 dark:bg-gray-900 items-center justify-center p-4 sticky top-0 h-full overflow-hidden">
                 {/* Handset Frame */}
-                <div className="relative w-[360px] h-[720px] bg-black rounded-[3rem] shadow-2xl border-4 border-gray-800 overflow-hidden ring-4 ring-gray-200 dark:ring-gray-800 transform scale-90 lg:scale-100 transition-transform">
+                <div className="relative flex-shrink-0 w-[320px] h-[640px] md:w-[360px] md:h-[720px] bg-black rounded-[3rem] shadow-2xl border-4 border-gray-800 overflow-hidden ring-4 ring-gray-200 dark:ring-gray-800 transform scale-[0.8] xl:scale-95 transition-transform origin-center">
                     {/* Notch/Dynamic Island */}
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-20"></div>
 

@@ -19,6 +19,8 @@ export interface User {
   dateOfBirth?: Date;
   socialLinks?: { twitter?: string; instagram?: string; linkedin?: string; github?: string };
   interactionType?: string;
+  role?: 'USER' | 'MODERATOR' | 'SUPER_ADMIN';
+  moderatorTier?: number;
 }
 
 
@@ -86,6 +88,13 @@ export interface Poll {
   createdAt: Date;
   updatedAt?: Date;
   moderationLogs?: ModerationLog[];
+  moderationDeadline?: Date;
+  isEscalated?: boolean;
+  isPaid?: boolean;
+  visibilityCategory?: string;
+  currentModerationTier?: number;
+  assignedModeratorId?: number;
+  assignedModerator?: User;
 }
 
 export interface ModerationLog {
@@ -93,7 +102,7 @@ export interface ModerationLog {
   pollId: number;
   moderatorId: number;
   moderator: User;
-  action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'RESUBMITTED';
+  action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'RESUBMITTED' | 'ESCALATED' | 'PUSH_NEXT_TIER';
   comment?: string;
   createdAt: string; // Date string from JSON
 }

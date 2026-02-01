@@ -60,4 +60,10 @@ export class User {
 
   @Column({ default: 1 })
   trustLevel: number;
+
+  @Column({ default: 'USER' })
+  role: 'USER' | 'MODERATOR' | 'SUPER_ADMIN';
+
+  @Column({ default: 0 })
+  moderatorTier: number;
 }

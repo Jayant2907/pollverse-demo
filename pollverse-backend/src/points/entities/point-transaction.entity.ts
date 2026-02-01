@@ -16,6 +16,8 @@ export type ActionType =
   | 'SWIPE_BONUS'
   | 'CLAWBACK'
   | 'POLL_PUBLISHED'
+  | 'MODERATION_PENALTY'
+  | 'SYSTEM_BOOST'
   | 'SIGN_PETITION';
 
 @Entity()

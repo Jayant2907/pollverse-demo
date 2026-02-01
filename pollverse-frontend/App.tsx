@@ -85,6 +85,16 @@ function App() {
         }
     }, []);
 
+    // Simple URL-based navigation listener (for convenience)
+    useEffect(() => {
+        const path = window.location.pathname;
+        if (path === '/admin') {
+            setPage({ name: 'admin' });
+        } else if (path === '/moderation' || path === '/review') {
+            setPage({ name: 'reviewQueue' });
+        }
+    }, []);
+
     const showToast = (message: string) => {
         setToast({ show: true, message });
         setTimeout(() => {

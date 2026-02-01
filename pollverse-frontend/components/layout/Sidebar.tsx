@@ -20,6 +20,10 @@ const Sidebar: React.FC<SidebarProps> = ({ page, onNavigate, currentUser }) => {
         navItems.push({ name: 'reviewQueue', label: 'Moderation', icon: ShieldCheck });
     }
 
+    if (currentUser?.role === 'SUPER_ADMIN') {
+        navItems.push({ name: 'admin', label: 'Command Center', icon: AppLogo });
+    }
+
     return (
         <aside className="hidden md:flex flex-col w-[240px] h-screen sticky top-0 px-2 py-4 justify-between border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-black flex-shrink-0">
             <div className="flex flex-col items-start px-2">

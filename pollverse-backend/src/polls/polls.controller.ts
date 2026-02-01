@@ -51,6 +51,17 @@ export class PollsController {
     return this.pollsService.findAll(backendQuery);
   }
 
+  // ============ SYSTEM CONFIG ============
+  @Get('config')
+  getSystemConfig() {
+    return this.pollsService.getSystemConfig();
+  }
+
+  @Patch('config')
+  updateSystemConfig(@Body() config: any) {
+    return this.pollsService.updateSystemConfig(config);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.pollsService.findOne(+id);
@@ -144,7 +155,7 @@ export class PollsController {
     @Body()
     body: {
       moderatorId: number;
-      action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES';
+      action: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' | 'PUSH_NEXT_TIER';
       comment?: string;
     },
   ) {
@@ -160,4 +171,5 @@ export class PollsController {
   getModerationHistory(@Param('id') id: string) {
     return this.pollsService.getModerationHistory(+id);
   }
+
 }
